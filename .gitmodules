@@ -7,3 +7,15 @@
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "lib/tstorish"]
+	path = lib/tstorish
+	url = https://github.com/ProjectOpenSea/tstorish
+[submodule "lib/permit2-relay"]
+	path = lib/permit2-relay
+	url = https://github.com/reservoirprotocol/permit2-relay
+[submodule "lib/Multicaller"]
+	path = lib/Multicaller
+	url = https://github.com/Vectorized/Multicaller
+[submodule "lib/v2-testnet-contracts"]
+	path = lib/v2-testnet-contracts
+	url = https://github.com/matter-labs/v2-testnet-contracts
