@@ -1,6 +1,13 @@
 # Compiler files
+broadcast/
 cache/
+cache-zk/
+cache_hardhat-zk/
+artifacts-zk/
+deployments-zk/
 out/
+ignition/
+zkout/
 
 # Ignores development broadcast logs
 !/broadcast
@@ -12,3 +19,6 @@ docs/
 
 # Dotenv file
 .env
+
+lib/
+node_modules/
