@@ -1,0 +1,9 @@
+@openzeppelin/=lib/openzeppelin-contracts/contracts
+solady/=lib/solady
+multicaller/=lib/Multicaller
+v2-core/=lib/v2-core
+v2-periphery/=lib/v2-periphery
+tstorish/=lib/tstorish
+permit2-relay/=lib/permit2-relay
+solmate/=lib/solmate
+@matterlabs/zksync-contracts/=/lib/v2-testnet-contracts/
