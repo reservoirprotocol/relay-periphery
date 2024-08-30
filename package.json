@@ -7,6 +7,7 @@
   "license": "MIT",
   "scripts": {
     "deploy": "hardhat deploy-zksync --script deploy.ts",
+    "deployUniversalRouter": "hardhat deploy-zksync --script deployUniversalRouter.ts",
     "interact": "hardhat deploy-zksync --script interact.ts",
     "compile": "hardhat compile",
     "clean": "hardhat clean",
@@ -16,7 +17,9 @@
     "@matterlabs/hardhat-zksync": "^1.1.0",
     "@matterlabs/zksync-contracts": "^0.6.1",
     "@nomicfoundation/hardhat-foundry": "^1.1.2",
-    "@nomiclabs/hardhat-etherscan": "^3.1.8"
+    "@nomiclabs/hardhat-etherscan": "^3.1.8",
+    "@uniswap/v2-core": "^1.0.1",
+    "@uniswap/v3-core": "^1.0.1"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
