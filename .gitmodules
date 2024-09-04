@@ -25,3 +25,12 @@
 [submodule "lib/v2-core"]
 	path = lib/v2-core
 	url = https://github.com/Uniswap/v2-core
+[submodule "lib/seaport-core"]
+	path = lib/seaport-core
+	url = https://github.com/ProjectOpenSea/seaport-core
+[submodule "lib/seaport-sol"]
+	path = lib/seaport-sol
+	url = https://github.com/ProjectOpenSea/seaport-sol
+[submodule "lib/v3-core"]
+	path = lib/v3-core
+	url = https://github.com/Uniswap/v3-core
