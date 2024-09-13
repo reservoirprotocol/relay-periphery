@@ -1,13 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
+import {Ownable} from "solady/src/auth/Ownable.sol";
+
 /**
- * @title Multicaller
+ * @title OnlyOwnerMulticaller
  * @author vectorized.eth
- * @notice Contract that allows for efficient aggregation
+ * @notice A fork of vectorized's Multicaller that can only be called by the owner.
+ *         Contract that allows for efficient aggregation
  *         of multiple calls in a single transaction.
  */
-contract Multicaller {
+contract OnlyOwnerMulticaller is Ownable {
+    constructor(address owner) {
+        _initializeOwner(owner);
+    }
+
     // =============================================================
     //                            ERRORS
     // =============================================================
@@ -37,7 +44,7 @@ contract Multicaller {
         bytes[] calldata data,
         uint256[] calldata values,
         address refundTo
-    ) external payable returns (bytes[] memory) {
+    ) external payable onlyOwner returns (bytes[] memory) {
         assembly {
             if iszero(
                 and(
@@ -162,7 +169,6 @@ contract Multicaller {
     /**
      * @dev For receiving ETH.
      *      Does nothing and returns nothing.
-     *      Called instead of `fallback()` if the calldatasize is zero.
      */
     receive() external payable {}
 
