@@ -7,12 +7,10 @@ import {Test} from "forge-std/Test.sol";
 import {Multicaller} from "multicaller/src/Multicaller.sol";
 import {Permit2} from "permit2-relay/src/Permit2.sol";
 import {ApprovalProxy} from "../src/ApprovalProxy.sol";
-import {OnlyOwnerMulticaller} from "../src/utils/OnlyOwnerMulticaller.sol";
-// import {ERC20Router} from "../src/ERC20Router.sol";
+import {OnlyOwnerMulticaller} from "../src/OnlyOwnerMulticaller.sol";
+import {ERC20Router} from "../src/ERC20Router.sol";
 import {RelayReceiver} from "../src/RelayReceiver.sol";
-import {Order, TokenTransfer} from "../src/types/lib/RelayStructs.sol";
-import {ICreate2Factory} from "./utils/ICreate2Factory.sol";
-import {ImmutableCreate2Factory} from "./utils/ImmutableCreate2Factory.sol";
+import {ICreate2Factory} from "../src/interfaces/ICreate2Factory.sol";
 import {BaseDeployer} from "./BaseDeployer.s.sol";
 
 contract CrossChainDeployer is Script, Test, BaseDeployer {
