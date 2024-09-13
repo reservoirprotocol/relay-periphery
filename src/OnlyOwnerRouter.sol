@@ -45,7 +45,7 @@ contract OnlyOwnerRouter is Ownable, Multicaller, Tstorish {
         // Set the address of the Permit2 contract
         PERMIT2 = IPermit2(permit2);
 
-        // Set the owner that can withdraw funds stuck in the contract
+        // Set the owner that can perform multicalls and withdraw funds stuck in the contract
         _initializeOwner(owner);
     }
 
