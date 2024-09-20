@@ -31,8 +31,14 @@ contract SingleChainDeployer is Script, Test, BaseDeployer {
         address multicaller = deployMulticaller();
         address erc20Router = deployERC20Router(permit2, multicaller);
         address approvalProxy = deployApprovalProxy(erc20Router);
-        address relayReceiver = deployRelayReceiver__latestBytecode(RELAY_RECEIVER);
-        address onlyOwnerMulticaller = deployOnlyOwnerMulticaller__latestBytecode(ONLY_OWNER_MULTICALLER);
+        if (vm.envBool("IS_TESTNET") == true) {
+            deployRelayReceiver(TESTNET_SOLVER);
+        } else {
+            deployRelayReceiver(SOLVER);
+        }
+        address onlyOwnerMulticaller = deployOnlyOwnerMulticaller__latestBytecode(
+                ONLY_OWNER_MULTICALLER
+            );
         vm.stopBroadcast();
 
         console2.log("\n");
@@ -227,21 +233,41 @@ contract SingleChainDeployer is Script, Test, BaseDeployer {
     }
 
     /// @notice Deploys the Relay Receiver contract to the given chain
-    function deployRelayReceiver() public returns (address) {
+    function deployRelayReceiver(address _solver) public returns (address) {
         console2.log("Deploying Receiver...");
 
-        if (_hasBeenDeployed(RELAY_RECEIVER)) {
+        address predictedAddress = address(
+            uint160(
+                uint(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff),
+                            FOUNDRY_CREATE2_FACTORY,
+                            VECTORIZED_MULTICALLER_SALT,
+                            keccak256(
+                                abi.encodePacked(
+                                    type(RelayReceiver).creationCode,
+                                    abi.encode(_solver)
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        );
+
+        if (_hasBeenDeployed(predictedAddress)) {
             console2.log(
                 "Receiver has already been deployed at: ",
-                RELAY_RECEIVER
+                predictedAddress
             );
-            return RELAY_RECEIVER;
+            return predictedAddress;
         }
 
         // Reuse salt for simplicity
         RelayReceiver relayReceiver = new RelayReceiver{
             salt: VECTORIZED_MULTICALLER_SALT
-        }(SOLVER);
+        }(_solver);
 
         console2.log("Receiver deployed: ", address(relayReceiver));
 
@@ -268,7 +294,7 @@ contract SingleChainDeployer is Script, Test, BaseDeployer {
 
         return PERMIT2;
     }
-    
+
     function deployOnlyOwnerMulticaller__latestBytecode(
         address expectedAddress
     ) public returns (address) {
