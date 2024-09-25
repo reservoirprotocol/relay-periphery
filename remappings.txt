@@ -7,3 +7,5 @@ tstorish/=lib/tstorish
 permit2-relay/=lib/permit2-relay
 solmate/=lib/solmate
 @matterlabs/zksync-contracts/=/lib/v2-testnet-contracts/
+@uniswap/v3-core=lib/v3-core
+@uniswap/v2-core=lib/v2-core
