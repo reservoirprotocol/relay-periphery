@@ -12,7 +12,7 @@ import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {RelayerWitness} from "./types/lib/RelayStructs.sol";
 import {Multicaller} from "./utils/Multicaller.sol";
 
-contract OnlyOwnerRouter is Ownable, Multicaller, Tstorish {
+contract RelayRouter is Ownable, Multicaller, Tstorish {
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
@@ -32,7 +32,8 @@ contract OnlyOwnerRouter is Ownable, Multicaller, Tstorish {
     /// @notice Revert if no recipient is set
     error NoRecipientSet();
 
-    uint256 RECIPIENT_STORAGE_SLOT = uint256(keccak256("ERC20Router.recipient"));
+    uint256 RECIPIENT_STORAGE_SLOT =
+        uint256(keccak256("ERC20Router.recipient"));
 
     IPermit2 private immutable PERMIT2;
 
@@ -74,7 +75,7 @@ contract OnlyOwnerRouter is Ownable, Multicaller, Tstorish {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable onlyOwner returns (bytes memory) {
+    ) external payable onlyOwner returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -86,12 +87,7 @@ contract OnlyOwnerRouter is Ownable, Multicaller, Tstorish {
         }
 
         // Perform the multicall and send leftover to refundTo
-        bytes memory data = _aggregate(
-            targets,
-            datas,
-            values,
-            refundTo
-        );
+        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
 
         return data;
     }
@@ -104,12 +100,12 @@ contract OnlyOwnerRouter is Ownable, Multicaller, Tstorish {
     /// @param datas The calldata for each call
     /// @param values The value to send with each call
     /// @param refundTo The address to send any leftover ETH and set as recipient of ERC721/ERC1155 mints
-    function aggregate(
+    function multicall(
         address[] calldata targets,
         bytes[] calldata datas,
         uint256[] calldata values,
         address refundTo
-    ) external payable onlyOwner returns (bytes memory) {
+    ) external payable onlyOwner returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -119,12 +115,7 @@ contract OnlyOwnerRouter is Ownable, Multicaller, Tstorish {
         _setRecipient(refundTo);
 
         // Perform the multicall
-        bytes memory data = _aggregate(
-            targets,
-            datas,
-            values,
-            refundTo
-        );
+        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
 
         // Clear the recipient in storage
         _clearRecipient();
@@ -256,7 +247,12 @@ contract OnlyOwnerRouter is Ownable, Multicaller, Tstorish {
         }
 
         // Transfer the NFT to the recipient
-        IERC721(msg.sender).safeTransferFrom(address(this), recipient, _tokenId, _data);
+        IERC721(msg.sender).safeTransferFrom(
+            address(this),
+            recipient,
+            _tokenId,
+            _data
+        );
 
         return this.onERC721Received.selector;
     }
@@ -279,7 +275,13 @@ contract OnlyOwnerRouter is Ownable, Multicaller, Tstorish {
         }
 
         // Transfer the tokens to the recipient
-        IERC1155(msg.sender).safeTransferFrom(address(this), recipient, _id, _value, _data);
+        IERC1155(msg.sender).safeTransferFrom(
+            address(this),
+            recipient,
+            _id,
+            _value,
+            _data
+        );
 
         return this.onERC1155Received.selector;
     }
@@ -302,7 +304,13 @@ contract OnlyOwnerRouter is Ownable, Multicaller, Tstorish {
         }
 
         // Transfer the tokens to the recipient
-        IERC1155(msg.sender).safeBatchTransferFrom(address(this), recipient, _ids, _values, _data);
+        IERC1155(msg.sender).safeBatchTransferFrom(
+            address(this),
+            recipient,
+            _ids,
+            _values,
+            _data
+        );
 
         return this.onERC1155BatchReceived.selector;
     }
