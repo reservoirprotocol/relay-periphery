@@ -125,15 +125,24 @@ contract RelayRouter is Ownable, Multicaller, Tstorish {
 
     /// @notice Send leftover ERC20 tokens to the refundTo address
     /// @dev Should be included in the multicall if the router is expecting to receive tokens
-    /// @param token The address of the ERC20 token
-    /// @param refundTo The address to refund the tokens to
-    function cleanupERC20(address token, address refundTo) external {
-        // Check the router's balance for the token
-        uint256 balance = IERC20(token).balanceOf(address(this));
+    /// @param tokens The addresses of the ERC20 tokens
+    /// @param recipients The addresses to refund the tokens to
+    function cleanupErc20s(address[] tokens, address[] recipients) external {
+        if (tokens.length != recipients.length) {
+            revert ArrayLengthsMismatch();
+        }
 
-        // Transfer the token to the refundTo address
-        if (balance > 0) {
-            IERC20(token).safeTransfer(refundTo, balance);
+        for (uint256 i; i < tokens.length; i++) {
+            address token = tokens[i];
+            address recipient = recipients[i];
+
+            // Check the router's balance for the token
+            uint256 balance = IERC20(token).balanceOf(address(this));
+
+            // Transfer the token to the recipient address
+            if (balance > 0) {
+                IERC20(token).safeTransfer(recipient, balance);
+            }
         }
     }
 
