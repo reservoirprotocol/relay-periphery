@@ -10,9 +10,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {RelayerWitness} from "./types/lib/RelayStructs.sol";
-import {IMulticaller} from "./types/interfaces/IMulticaller.sol";
+import {Multicaller} from "./utils/Multicaller.sol";
 
-contract ERC20Router is Ownable, Tstorish {
+contract OwnableRelayRouter is Ownable, Multicaller, Tstorish {
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
@@ -32,27 +32,21 @@ contract ERC20Router is Ownable, Tstorish {
     /// @notice Revert if no recipient is set
     error NoRecipientSet();
 
-    uint256 RECIPIENT_STORAGE_SLOT = uint256(keccak256("ERC20Router.recipient"));
-
-    address constant ZORA_REWARDS_V1 =
-        0x7777777F279eba3d3Ad8F4E708545291A6fDBA8B;
+    uint256 RECIPIENT_STORAGE_SLOT =
+        uint256(keccak256("ERC20Router.recipient"));
 
     IPermit2 private immutable PERMIT2;
-    address private immutable MULTICALLER;
 
     string public constant _RELAYER_WITNESS_TYPE_STRING =
         "RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
         keccak256("RelayerWitness(address relayer)");
 
-    constructor(address permit2, address multicaller, address owner) Tstorish() {
+    constructor(address permit2, address owner) Tstorish() {
         // Set the address of the Permit2 contract
         PERMIT2 = IPermit2(permit2);
 
-        // Set the address of the multicaller contract
-        MULTICALLER = multicaller;
-
-        // Set the owner that can withdraw funds stuck in the contract
+        // Set the owner that can perform multicalls and withdraw funds stuck in the contract
         _initializeOwner(owner);
     }
 
@@ -81,7 +75,7 @@ contract ERC20Router is Ownable, Tstorish {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable returns (bytes memory) {
+    ) external payable onlyOwner returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -93,18 +87,12 @@ contract ERC20Router is Ownable, Tstorish {
         }
 
         // Perform the multicall and send leftover to refundTo
-        bytes memory data = _delegatecallMulticall(
-            targets,
-            datas,
-            values,
-            refundTo
-        );
+        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
 
         return data;
     }
 
-    /// @notice Call the Multicaller with a delegatecall to set the ERC20Router as the
-    ///         sender of the calls to the targets.
+    /// @notice Perform the multicall and send leftover ETH to the refundTo address
     /// @dev    If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
     ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in refundTo
     ///         If refundTo is address(this), be sure to transfer tokens out of the router as part of the multicall
@@ -112,12 +100,12 @@ contract ERC20Router is Ownable, Tstorish {
     /// @param datas The calldata for each call
     /// @param values The value to send with each call
     /// @param refundTo The address to send any leftover ETH and set as recipient of ERC721/ERC1155 mints
-    function delegatecallMulticall(
+    function multicall(
         address[] calldata targets,
         bytes[] calldata datas,
         uint256[] calldata values,
         address refundTo
-    ) external payable returns (bytes memory) {
+    ) external payable onlyOwner returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -127,12 +115,7 @@ contract ERC20Router is Ownable, Tstorish {
         _setRecipient(refundTo);
 
         // Perform the multicall
-        bytes memory data = _delegatecallMulticall(
-            targets,
-            datas,
-            values,
-            refundTo
-        );
+        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
 
         // Clear the recipient in storage
         _clearRecipient();
@@ -142,15 +125,25 @@ contract ERC20Router is Ownable, Tstorish {
 
     /// @notice Send leftover ERC20 tokens to the refundTo address
     /// @dev Should be included in the multicall if the router is expecting to receive tokens
-    /// @param token The address of the ERC20 token
-    /// @param refundTo The address to refund the tokens to
-    function cleanupERC20(address token, address refundTo) external {
-        // Check the router's balance for the token
-        uint256 balance = IERC20(token).balanceOf(address(this));
+    /// @param tokens The addresses of the ERC20 tokens
+    /// @param recipients The addresses to refund the tokens to
+    function cleanupErc20s(address[] tokens, address[] recipients) external {
+        // Revert if array lengths do not match
+        if (tokens.length != recipients.length) {
+            revert ArrayLengthsMismatch();
+        }
 
-        // Transfer the token to the refundTo address
-        if (balance > 0) {
-            IERC20(token).safeTransfer(refundTo, balance);
+        for (uint256 i; i < tokens.length; i++) {
+            address token = tokens[i];
+            address recipient = recipients[i];
+
+            // Check the router's balance for the token
+            uint256 balance = IERC20(token).balanceOf(address(this));
+
+            // Transfer the token to the recipient address
+            if (balance > 0) {
+                IERC20(token).safeTransfer(recipient, balance);
+            }
         }
     }
 
@@ -232,45 +225,6 @@ contract ERC20Router is Ownable, Tstorish {
         _clearTstorish(RECIPIENT_STORAGE_SLOT);
     }
 
-    /// @notice Internal function to delegatecall the Multicaller contract
-    /// @param targets The addresses of the contracts to call
-    /// @param datas The calldata for each call
-    /// @param values The value to send with each call
-    /// @param refundTo The address to send any leftover ETH and set as recipient of ERC721/ERC1155 mints
-    function _delegatecallMulticall(
-        address[] calldata targets,
-        bytes[] calldata datas,
-        uint256[] calldata values,
-        address refundTo
-    ) internal returns (bytes memory) {
-        for (uint256 i = 0; i < targets.length; i++) {
-            // Revert if the call fails
-            if (targets[i] == ZORA_REWARDS_V1) {
-                revert InvalidTarget(ZORA_REWARDS_V1);
-            }
-        }
-
-        // Perform the multicall and refund to the user
-        (bool success, bytes memory data) = MULTICALLER.delegatecall(
-            abi.encodeWithSignature(
-                "aggregate(address[],bytes[],uint256[],address)",
-                targets,
-                datas,
-                values,
-                refundTo
-            )
-        );
-
-        if (!success) {
-            assembly {
-                let returnDataSize := mload(data)
-                revert(add(data, 32), returnDataSize)
-            }
-        }
-
-        return data;
-    }
-
     function _send(address to, uint256 value) internal {
         bool success;
         assembly {
@@ -303,7 +257,12 @@ contract ERC20Router is Ownable, Tstorish {
         }
 
         // Transfer the NFT to the recipient
-        IERC721(msg.sender).safeTransferFrom(address(this), recipient, _tokenId, _data);
+        IERC721(msg.sender).safeTransferFrom(
+            address(this),
+            recipient,
+            _tokenId,
+            _data
+        );
 
         return this.onERC721Received.selector;
     }
@@ -326,7 +285,13 @@ contract ERC20Router is Ownable, Tstorish {
         }
 
         // Transfer the tokens to the recipient
-        IERC1155(msg.sender).safeTransferFrom(address(this), recipient, _id, _value, _data);
+        IERC1155(msg.sender).safeTransferFrom(
+            address(this),
+            recipient,
+            _id,
+            _value,
+            _data
+        );
 
         return this.onERC1155Received.selector;
     }
@@ -349,7 +314,13 @@ contract ERC20Router is Ownable, Tstorish {
         }
 
         // Transfer the tokens to the recipient
-        IERC1155(msg.sender).safeBatchTransferFrom(address(this), recipient, _ids, _values, _data);
+        IERC1155(msg.sender).safeBatchTransferFrom(
+            address(this),
+            recipient,
+            _ids,
+            _values,
+            _data
+        );
 
         return this.onERC1155BatchReceived.selector;
     }

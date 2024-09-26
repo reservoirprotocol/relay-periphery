@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import {Ownable} from "solady/src/auth/Ownable.sol";
 import {Tstorish} from "tstorish/src/Tstorish.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -12,7 +11,7 @@ import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {RelayerWitness} from "./types/lib/RelayStructs.sol";
 import {Multicaller} from "./utils/Multicaller.sol";
 
-contract RelayRouter is Ownable, Multicaller, Tstorish {
+contract RelayRouter is Multicaller, Tstorish {
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
@@ -36,23 +35,23 @@ contract RelayRouter is Ownable, Multicaller, Tstorish {
         uint256(keccak256("ERC20Router.recipient"));
 
     IPermit2 private immutable PERMIT2;
+    address private immutable MULTICALLER;
 
     string public constant _RELAYER_WITNESS_TYPE_STRING =
         "RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
         keccak256("RelayerWitness(address relayer)");
 
-    constructor(address permit2, address owner) Tstorish() {
+    constructor(address permit2) Tstorish() {
         // Set the address of the Permit2 contract
         PERMIT2 = IPermit2(permit2);
-
-        // Set the owner that can perform multicalls and withdraw funds stuck in the contract
-        _initializeOwner(owner);
     }
 
     receive() external payable {}
 
-    function withdraw() external onlyOwner {
+    /// @notice Withdraw function in case funds get stuck in contract
+    /// @dev Any account can call this function to withdraw the contract's balance
+    function withdraw() external {
         _send(msg.sender, address(this).balance);
     }
 
@@ -75,7 +74,7 @@ contract RelayRouter is Ownable, Multicaller, Tstorish {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable onlyOwner returns (bytes[] memory) {
+    ) external payable returns (bytes memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -87,12 +86,14 @@ contract RelayRouter is Ownable, Multicaller, Tstorish {
         }
 
         // Perform the multicall and send leftover to refundTo
+        // Perform the multicall and send leftover to refundTo
         bytes[] memory data = _aggregate(targets, datas, values, refundTo);
 
         return data;
     }
 
-    /// @notice Perform the multicall and send leftover ETH to the refundTo address
+    /// @notice Call the Multicaller with a delegatecall to set the ERC20Router as the
+    ///         sender of the calls to the targets.
     /// @dev    If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
     ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in refundTo
     ///         If refundTo is address(this), be sure to transfer tokens out of the router as part of the multicall
@@ -105,7 +106,7 @@ contract RelayRouter is Ownable, Multicaller, Tstorish {
         bytes[] calldata datas,
         uint256[] calldata values,
         address refundTo
-    ) external payable onlyOwner returns (bytes[] memory) {
+    ) external payable returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -115,7 +116,12 @@ contract RelayRouter is Ownable, Multicaller, Tstorish {
         _setRecipient(refundTo);
 
         // Perform the multicall
-        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
+        bytes[] memory data = _delegatecallMulticall(
+            targets,
+            datas,
+            values,
+            refundTo
+        );
 
         // Clear the recipient in storage
         _clearRecipient();
@@ -128,6 +134,7 @@ contract RelayRouter is Ownable, Multicaller, Tstorish {
     /// @param tokens The addresses of the ERC20 tokens
     /// @param recipients The addresses to refund the tokens to
     function cleanupErc20s(address[] tokens, address[] recipients) external {
+        // Revert if array lengths do not match
         if (tokens.length != recipients.length) {
             revert ArrayLengthsMismatch();
         }
