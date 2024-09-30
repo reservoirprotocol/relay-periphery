@@ -12,7 +12,7 @@ import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfe
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {PermitSignature} from "permit2-relay/test/utils/PermitSignature.sol";
 import {ApprovalProxy} from "../src/ApprovalProxy.sol";
-import {ERC20Router} from "../src/ERC20Router.sol";
+import {RelayRouter} from "../src/RelayRouter.sol";
 import {NoOpERC20} from "./mocks/NoOpERC20.sol";
 import {TestERC721} from "./mocks/TestERC721.sol";
 import {TestERC721_ERC20PaymentToken} from "./mocks/TestERC721_ERC20PaymentToken.sol";
@@ -23,7 +23,7 @@ struct RelayerWitness {
     address relayer;
 }
 
-contract ERC20RouterTest is Test, BaseRelayTest {
+contract RelayRouterTest is Test, BaseRelayTest {
     using SafeERC20 for IERC20;
 
     error Unauthorized();
