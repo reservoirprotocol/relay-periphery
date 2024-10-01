@@ -20,9 +20,6 @@ contract OwnableRelayRouter is Ownable, Multicaller, Tstorish {
 
     // --- Errors --- //
 
-    /// @notice Revert if array lengths do not match
-    error ArrayLengthsMismatch();
-
     /// @notice Revert if this contract is set as the recipient
     error InvalidRecipient(address recipient);
 

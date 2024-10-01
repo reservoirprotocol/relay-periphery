@@ -18,10 +18,6 @@ contract RelayRouter is Multicaller, Tstorish {
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
-
-    /// @notice Revert if array lengths do not match
-    error ArrayLengthsMismatch();
-
     /// @notice Revert if this contract is set as the recipient
     error InvalidRecipient(address recipient);
 
@@ -119,12 +115,7 @@ contract RelayRouter is Multicaller, Tstorish {
         _setRecipient(refundTo);
 
         // Perform the multicall
-        bytes[] memory data = _delegatecallMulticall(
-            targets,
-            datas,
-            values,
-            refundTo
-        );
+        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
 
         // Clear the recipient in storage
         _clearRecipient();
