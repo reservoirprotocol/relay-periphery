@@ -127,7 +127,10 @@ contract RelayRouter is Multicaller, Tstorish {
     /// @dev Should be included in the multicall if the router is expecting to receive tokens
     /// @param tokens The addresses of the ERC20 tokens
     /// @param recipients The addresses to refund the tokens to
-    function cleanupErc20s(address[] tokens, address[] recipients) external {
+    function cleanupErc20s(
+        address[] calldata tokens,
+        address[] calldata recipients
+    ) external {
         // Revert if array lengths do not match
         if (tokens.length != recipients.length) {
             revert ArrayLengthsMismatch();
