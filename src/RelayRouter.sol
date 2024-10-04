@@ -46,8 +46,6 @@ contract RelayRouter is Multicaller, Tstorish {
         PERMIT2 = IPermit2(permit2);
     }
 
-    receive() external payable {}
-
     /// @notice Withdraw function in case funds get stuck in contract
     /// @dev Any account can call this function to withdraw the contract's balance
     function withdraw() external {
@@ -73,7 +71,7 @@ contract RelayRouter is Multicaller, Tstorish {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable returns (bytes memory) {
+    ) external payable returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();

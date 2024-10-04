@@ -334,7 +334,6 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
 
         OwnableRelayRouter router = new OwnableRelayRouter{salt: ROUTER_SALT}(
             permit2,
-            multicaller,
             SOLVER
         );
 
