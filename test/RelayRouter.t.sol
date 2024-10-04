@@ -80,11 +80,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
     function setUp() public override {
         super.setUp();
 
-        router = new OwnableRelayRouter(
-            address(permit2),
-            address(multicaller),
-            alice.addr
-        );
+        router = new OwnableRelayRouter(address(permit2), alice.addr);
 
         approvalProxy = new ApprovalProxy(address(this), address(router));
 
@@ -285,12 +281,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         uint256 aliceUSDCBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
 
         vm.prank(alice.addr);
-        router.delegatecallMulticall{value: 1 ether}(
-            targets,
-            datas,
-            values,
-            alice.addr
-        );
+        router.multicall{value: 1 ether}(targets, datas, values, alice.addr);
 
         uint256 aliceBalanceAfter = alice.addr.balance;
         uint256 aliceUSDCBalanceAfter = IERC20(USDC).balanceOf(alice.addr);
@@ -332,12 +323,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         uint256 aliceUSDCBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
 
         vm.prank(alice.addr);
-        router.delegatecallMulticall{value: 2 ether}(
-            targets,
-            datas,
-            values,
-            alice.addr
-        );
+        router.multicall{value: 2 ether}(targets, datas, values, alice.addr);
 
         uint256 aliceBalanceAfter = alice.addr.balance;
         uint256 aliceUSDCBalanceAfter = IERC20(USDC).balanceOf(alice.addr);
@@ -387,12 +373,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         );
 
         vm.prank(alice.addr);
-        router.delegatecallMulticall{value: 1 ether}(
-            targets,
-            datas,
-            values,
-            alice.addr
-        );
+        router.multicall{value: 1 ether}(targets, datas, values, alice.addr);
 
         uint256 aliceBalanceAfterMulticall = alice.addr.balance;
         uint256 routerUSDCBalanceAfterMulticall = IERC20(USDC).balanceOf(
@@ -403,7 +384,13 @@ contract RelayRouterTest is Test, BaseRelayTest {
         assertGt(routerUSDCBalanceAfterMulticall, routerUSDCBalanceBefore);
         assertEq(nft.ownerOf(10), alice.addr);
 
-        router.cleanupERC20(USDC, alice.addr);
+        address[] memory tokens = new address[](1);
+        tokens[0] = USDC;
+
+        address[] memory recipients = new address[](1);
+        recipients[0] = alice.addr;
+
+        router.cleanupErc20s(tokens, recipients);
 
         uint256 aliceUSDCBalanceAfterCleanup = IERC20(USDC).balanceOf(
             alice.addr
@@ -474,7 +461,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         values[0] = 0;
 
         vm.prank(bob.addr);
-        router.delegatecallMulticall(targets, datas, values, bob.addr);
+        router.multicall(targets, datas, values, bob.addr);
 
         assertEq(erc20_1.balanceOf(bob.addr), 1 ether);
     }
@@ -663,12 +650,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
             )
         );
         vm.prank(alice.addr);
-        router.delegatecallMulticall{value: 1 ether}(
-            targets,
-            datas,
-            values,
-            alice.addr
-        );
+        router.multicall{value: 1 ether}(targets, datas, values, alice.addr);
     }
 
     function testApprovalProxySetRouter() public {
@@ -736,7 +718,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
 
         bytes[] memory datas = new bytes[](1);
         datas[0] = abi.encodeWithSelector(
-            router.cleanupERC20.selector,
+            router.cleanupErc20s.selector,
             USDT,
             relaySolver
         );
@@ -745,7 +727,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         values[0] = 0;
 
         vm.prank(relaySolver);
-        router.delegatecallMulticall(targets, datas, values, relaySolver);
+        router.multicall(targets, datas, values, relaySolver);
 
         assertEq(IERC20(USDT).balanceOf(relaySolver), 1000 * 10 ** 6);
     }
@@ -765,7 +747,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
 
         bytes[] memory datas = new bytes[](1);
         datas[0] = abi.encodeWithSelector(
-            router.cleanupERC20.selector,
+            router.cleanupErc20s.selector,
             USDT,
             relaySolver
         );
@@ -808,7 +790,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         values[0] = 0;
 
         vm.prank(alice.addr);
-        router.delegatecallMulticall(targets, datas, values, alice.addr);
+        router.multicall(targets, datas, values, alice.addr);
 
         assertEq(erc721.ownerOf(1), alice.addr);
     }
@@ -833,7 +815,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         values[0] = 0;
 
         vm.prank(alice.addr);
-        router.delegatecallMulticall(targets, datas, values, alice.addr);
+        router.multicall(targets, datas, values, alice.addr);
 
         assertEq(erc721.ownerOf(1), alice.addr);
     }
@@ -850,7 +832,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         uint256[] memory values = new uint256[](1);
         values[0] = 0;
 
-        router.delegatecallMulticall(targets, datas, values, alice.addr);
+        router.multicall(targets, datas, values, alice.addr);
 
         assertEq(erc721.ownerOf(1), alice.addr);
     }
