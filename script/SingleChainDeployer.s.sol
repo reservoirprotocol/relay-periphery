@@ -8,7 +8,8 @@ import {Multicaller} from "multicaller/src/Multicaller.sol";
 import {Permit2} from "permit2-relay/src/Permit2.sol";
 import {ApprovalProxy} from "../src/ApprovalProxy.sol";
 import {OnlyOwnerMulticaller} from "../src/OnlyOwnerMulticaller.sol";
-import {ERC20Router} from "../src/ERC20Router.sol";
+import {RelayRouter} from "../src/RelayRouter.sol";
+import {OwnableRelayRouter} from "../src/OwnableRelayRouter.sol";
 import {RelayReceiver} from "../src/RelayReceiver.sol";
 import {ICreate2Factory} from "../src/interfaces/ICreate2Factory.sol";
 import {BaseDeployer} from "./BaseDeployer.s.sol";
@@ -29,7 +30,7 @@ contract SingleChainDeployer is Script, Test, BaseDeployer {
         vm.startBroadcast(owner);
         address permit2 = deployPermit2();
         address multicaller = deployMulticaller();
-        address erc20Router = deployERC20Router(permit2, multicaller);
+        address erc20Router = deployOwnableRelayRouter(permit2, multicaller);
         address approvalProxy = deployApprovalProxy(erc20Router);
         if (vm.envBool("IS_TESTNET") == true) {
             deployRelayReceiver(TESTNET_SOLVER);
@@ -182,12 +183,12 @@ contract SingleChainDeployer is Script, Test, BaseDeployer {
         return address(approvalProxy);
     }
 
-    /// @notice Deploys the ERC20 Router contract to the given chain
-    function deployERC20Router(
+    /// @notice Deploys the OwnableRelayRouter contract to the given chain
+    function deployOwnableRelayRouter(
         address permit2,
         address multicaller
     ) public returns (address) {
-        console2.log("Deploying ERC20 Router...");
+        console2.log("Deploying OwnableRelayRouter...");
 
         address predictedAddress = address(
             uint160(
@@ -199,7 +200,7 @@ contract SingleChainDeployer is Script, Test, BaseDeployer {
                             ROUTER_SALT,
                             keccak256(
                                 abi.encodePacked(
-                                    type(ERC20Router).creationCode,
+                                    type(OwnableRelayRouter).creationCode,
                                     abi.encode(permit2, multicaller, SOLVER)
                                 )
                             )
@@ -211,15 +212,14 @@ contract SingleChainDeployer is Script, Test, BaseDeployer {
 
         if (_hasBeenDeployed(predictedAddress)) {
             console2.log(
-                "ERC20 Router has already been deployed at: ",
+                "OwnableRelayRouter has already been deployed at: ",
                 predictedAddress
             );
             return predictedAddress;
         }
 
-        ERC20Router router = new ERC20Router{salt: ROUTER_SALT}(
+        OwnableRelayRouter router = new OwnableRelayRouter{salt: ROUTER_SALT}(
             permit2,
-            multicaller,
             SOLVER
         );
 
@@ -227,7 +227,7 @@ contract SingleChainDeployer is Script, Test, BaseDeployer {
             revert InvalidContractAddress(predictedAddress, address(router));
         }
 
-        console2.log("ERC20 Router deployed: ", address(router));
+        console2.log("OwnableRelayRouter deployed: ", address(router));
 
         return address(router);
     }

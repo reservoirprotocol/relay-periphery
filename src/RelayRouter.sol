@@ -8,17 +8,16 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
-import {RelayerWitness} from "./types/lib/RelayStructs.sol";
 import {Multicaller} from "./utils/Multicaller.sol";
+
+struct RelayerWitness {
+    address relayer;
+}
 
 contract RelayRouter is Multicaller, Tstorish {
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
-
-    /// @notice Revert if array lengths do not match
-    error ArrayLengthsMismatch();
-
     /// @notice Revert if this contract is set as the recipient
     error InvalidRecipient(address recipient);
 
@@ -47,8 +46,6 @@ contract RelayRouter is Multicaller, Tstorish {
         PERMIT2 = IPermit2(permit2);
     }
 
-    receive() external payable {}
-
     /// @notice Withdraw function in case funds get stuck in contract
     /// @dev Any account can call this function to withdraw the contract's balance
     function withdraw() external {
@@ -74,7 +71,7 @@ contract RelayRouter is Multicaller, Tstorish {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable returns (bytes memory) {
+    ) external payable returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -116,12 +113,7 @@ contract RelayRouter is Multicaller, Tstorish {
         _setRecipient(refundTo);
 
         // Perform the multicall
-        bytes[] memory data = _delegatecallMulticall(
-            targets,
-            datas,
-            values,
-            refundTo
-        );
+        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
 
         // Clear the recipient in storage
         _clearRecipient();
@@ -133,7 +125,10 @@ contract RelayRouter is Multicaller, Tstorish {
     /// @dev Should be included in the multicall if the router is expecting to receive tokens
     /// @param tokens The addresses of the ERC20 tokens
     /// @param recipients The addresses to refund the tokens to
-    function cleanupErc20s(address[] tokens, address[] recipients) external {
+    function cleanupErc20s(
+        address[] calldata tokens,
+        address[] calldata recipients
+    ) external {
         // Revert if array lengths do not match
         if (tokens.length != recipients.length) {
             revert ArrayLengthsMismatch();

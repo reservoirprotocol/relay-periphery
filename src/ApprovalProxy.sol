@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20Router} from "../src/interfaces/IERC20Router.sol";
+import {IRelayRouter} from "../src/interfaces/IRelayRouter.sol";
 
 contract ApprovalProxy is Ownable {
     using SafeERC20 for IERC20;
@@ -71,7 +71,7 @@ contract ApprovalProxy is Ownable {
         // Call delegatecallMulticall on the router. The router will perform a
         // delegatecall to the Multicaller.
         // @dev msg.sender for the calls to targets will be the router
-        bytes memory data = IERC20Router(router).delegatecallMulticall{value: msg.value}(
+        bytes memory data = IRelayRouter(router).multicall{value: msg.value}(
             targets,
             datas,
             values,

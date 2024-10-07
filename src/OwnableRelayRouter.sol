@@ -9,16 +9,16 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
-import {RelayerWitness} from "./types/lib/RelayStructs.sol";
 import {Multicaller} from "./utils/Multicaller.sol";
+
+struct RelayerWitness {
+    address relayer;
+}
 
 contract OwnableRelayRouter is Ownable, Multicaller, Tstorish {
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
-
-    /// @notice Revert if array lengths do not match
-    error ArrayLengthsMismatch();
 
     /// @notice Revert if this contract is set as the recipient
     error InvalidRecipient(address recipient);
@@ -49,8 +49,6 @@ contract OwnableRelayRouter is Ownable, Multicaller, Tstorish {
         // Set the owner that can perform multicalls and withdraw funds stuck in the contract
         _initializeOwner(owner);
     }
-
-    receive() external payable {}
 
     function withdraw() external onlyOwner {
         _send(msg.sender, address(this).balance);
@@ -127,7 +125,10 @@ contract OwnableRelayRouter is Ownable, Multicaller, Tstorish {
     /// @dev Should be included in the multicall if the router is expecting to receive tokens
     /// @param tokens The addresses of the ERC20 tokens
     /// @param recipients The addresses to refund the tokens to
-    function cleanupErc20s(address[] tokens, address[] recipients) external {
+    function cleanupErc20s(
+        address[] calldata tokens,
+        address[] calldata recipients
+    ) external {
         // Revert if array lengths do not match
         if (tokens.length != recipients.length) {
             revert ArrayLengthsMismatch();

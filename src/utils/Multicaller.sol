@@ -37,7 +37,7 @@ contract Multicaller {
         bytes[] calldata data,
         uint256[] calldata values,
         address refundTo
-    ) internal payable returns (bytes[] memory) {
+    ) internal returns (bytes[] memory) {
         assembly {
             if iszero(
                 and(
