@@ -5,7 +5,7 @@ import {Tstorish} from "tstorish/src/Tstorish.sol";
 import {TloadTest} from "./TloadTest.sol";
 
 contract ZkTstorish is Tstorish {
-    address constant immutable _CONTRACT_DEPLOYER_SYSTEM_CONTRACT =
+    address constant _CONTRACT_DEPLOYER_SYSTEM_CONTRACT =
         0x0000000000000000000000000000000000008006;
 
     /**
@@ -47,6 +47,84 @@ contract ZkTstorish is Tstorish {
     }
 
     /**
+     * @dev Private function to set a TSTORISH value. Assigned to _setTstorish
+     *      internal function variable at construction if chain has tstore support.
+     *
+     * @param storageSlot The slot to write the TSTORISH value to.
+     * @param value       The value to write to the given storage slot.
+     */
+    function _setTstore(uint256 storageSlot, uint256 value) private override {
+        super._setTstore(storageSlot, value);
+    }
+
+    /**
+     * @dev Private function to set a TSTORISH value with sstore fallback.
+     *      Assigned to _setTstorish internal function variable at construction
+     *      if chain does not have tstore support.
+     *
+     * @param storageSlot The slot to write the TSTORISH value to.
+     * @param value       The value to write to the given storage slot.
+     */
+    function _setTstorishWithSstoreFallback(
+        uint256 storageSlot,
+        uint256 value
+    ) private override {
+        set._setTstorishWithSstoreFallback(storageSlot, value);
+    }
+
+    /**
+     * @dev Private function to read a TSTORISH value. Assigned to _getTstorish
+     *      internal function variable at construction if chain has tstore support.
+     *
+     * @param storageSlot The slot to read the TSTORISH value from.
+     *
+     * @return value The TSTORISH value at the given storage slot.
+     */
+    function _getTstore(
+        uint256 storageSlot
+    ) private view override returns (uint256 value) {
+        super._getTstore(storageSlot);
+    }
+
+    /**
+     * @dev Private function to read a TSTORISH value with sload fallback.
+     *      Assigned to _getTstorish internal function variable at construction
+     *      if chain does not have tstore support.
+     *
+     * @param storageSlot The slot to read the TSTORISH value from.
+     *
+     * @return value The TSTORISH value at the given storage slot.
+     */
+    function _getTstorishWithSloadFallback(
+        uint256 storageSlot
+    ) private view override returns (uint256 value) {
+        super._getTstorishWithSloadFallback(storageSlot);
+    }
+
+    /**
+     * @dev Private function to clear a TSTORISH value. Assigned to _clearTstorish internal
+     *      function variable at construction if chain has tstore support.
+     *
+     * @param storageSlot The slot to clear the TSTORISH value for.
+     */
+    function _clearTstore(uint256 storageSlot) private override {
+        super._clearTstore(storageSlot);
+    }
+
+    /**
+     * @dev Private function to clear a TSTORISH value with sstore fallback.
+     *      Assigned to _clearTstorish internal function variable at construction
+     *      if chain does not have tstore support.
+     *
+     * @param storageSlot The slot to clear the TSTORISH value for.
+     */
+    function _clearTstorishWithSstoreFallback(
+        uint256 storageSlot
+    ) private override {
+        super._clearTstorishWithSstoreFallback(storageSlot);
+    }
+
+    /**
      * @dev Private function to deploy a test contract that utilizes TLOAD as
      *      part of its fallback logic.
      */
@@ -77,5 +155,16 @@ contract ZkTstorish is Tstorish {
                 )
             }
         }
+    }
+
+    /**
+     * @dev Private view function to determine if TSTORE/TLOAD are supported by
+     *      the current EVM implementation by attempting to call the test
+     *      contract, which utilizes TLOAD as part of its fallback logic.
+     */
+    function _testTload(
+        address tloadTestContract
+    ) private view returns (bool ok) {
+        super._testTload(tloadTestContract);
     }
 }
