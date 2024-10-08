@@ -12,7 +12,7 @@ import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfe
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {PermitSignature} from "permit2-relay/test/utils/PermitSignature.sol";
 import {ApprovalProxy} from "../src/ApprovalProxy.sol";
-import {OwnableRelayRouter} from "../src/OwnableRelayRouter.sol";
+import {RelayRouter} from "../src/RelayRouter.sol";
 import {NoOpERC20} from "./mocks/NoOpERC20.sol";
 import {TestERC721} from "./mocks/TestERC721.sol";
 import {TestERC721_ERC20PaymentToken} from "./mocks/TestERC721_ERC20PaymentToken.sol";
@@ -47,7 +47,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
     Permit2 permit2 = Permit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
     Multicaller multicaller =
         Multicaller(payable(0x0000000000002Bdbf1Bf3279983603Ec279CC6dF));
-    OwnableRelayRouter router;
+    RelayRouter router;
     ApprovalProxy approvalProxy;
 
     bytes32 public DOMAIN_SEPARATOR;
@@ -80,7 +80,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
     function setUp() public override {
         super.setUp();
 
-        router = new OwnableRelayRouter(address(permit2), alice.addr);
+        router = new RelayRouter(address(permit2));
 
         approvalProxy = new ApprovalProxy(address(this), address(router));
 
@@ -550,13 +550,13 @@ contract RelayRouterTest is Test, BaseRelayTest {
         targets[1] = ROUTER_V2;
 
         bytes[] memory datas = new bytes[](2);
-        // OwnableRelayRouter approves UniV2Router to spend USDC
+        // RelayRouter approves UniV2Router to spend USDC
         datas[0] = abi.encodeWithSelector(
             IERC20.approve.selector,
             ROUTER_V2,
             1000 * 10 ** 6
         );
-        // OwnableRelayRouter swaps USDC for DAI and alice receives output
+        // RelayRouter swaps USDC for DAI and alice receives output
         datas[1] = abi.encodeWithSelector(
             IUniswapV2Router01.swapExactTokensForTokens.selector,
             1000 * 10 ** 6,
