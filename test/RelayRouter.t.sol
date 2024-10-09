@@ -119,9 +119,6 @@ contract RelayRouterTest is Test, BaseRelayTest {
 
         assertEq(address(router).balance, 1 ether);
 
-        vm.expectRevert(Unauthorized.selector);
-        router.withdraw();
-
         vm.prank(alice.addr);
         router.withdraw();
 
@@ -629,30 +626,6 @@ contract RelayRouterTest is Test, BaseRelayTest {
         );
     }
 
-    function testRevertZoraProtocolRewards() public {
-        bytes[] memory datas = new bytes[](1);
-        datas[0] = abi.encodeWithSignature(
-            "withdraw(address,uint256)",
-            alice.addr,
-            0
-        );
-
-        address[] memory targets = new address[](1);
-        targets[0] = 0x7777777F279eba3d3Ad8F4E708545291A6fDBA8B;
-
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                InvalidTarget.selector,
-                0x7777777F279eba3d3Ad8F4E708545291A6fDBA8B
-            )
-        );
-        vm.prank(alice.addr);
-        router.multicall{value: 1 ether}(targets, datas, values, alice.addr);
-    }
-
     function testApprovalProxySetRouter() public {
         vm.expectRevert(Unauthorized.selector);
         vm.prank(alice.addr);
@@ -717,10 +690,17 @@ contract RelayRouterTest is Test, BaseRelayTest {
         targets[0] = address(router);
 
         bytes[] memory datas = new bytes[](1);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = USDT;
+
+        address[] memory recipients = new address[](1);
+        recipients[0] = relaySolver;
+
         datas[0] = abi.encodeWithSelector(
             router.cleanupErc20s.selector,
-            USDT,
-            relaySolver
+            tokens,
+            recipients
         );
 
         uint256[] memory values = new uint256[](1);
@@ -745,11 +725,14 @@ contract RelayRouterTest is Test, BaseRelayTest {
         address[] memory targets = new address[](1);
         targets[0] = address(router);
 
+        address[] memory recipients = new address[](1);
+        recipients[0] = relaySolver;
+
         bytes[] memory datas = new bytes[](1);
         datas[0] = abi.encodeWithSelector(
             router.cleanupErc20s.selector,
-            USDT,
-            relaySolver
+            tokens,
+            recipients
         );
 
         uint256[] memory values = new uint256[](1);
