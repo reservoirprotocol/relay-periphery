@@ -1,12 +1,57 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.24;
 
-import {Tstorish} from "tstorish/src/Tstorish.sol";
 import {TloadTest} from "./TloadTest.sol";
 
-contract ZkTstorish is Tstorish {
+contract ZkTstorish {
+    // Declare a storage variable indicating if TSTORE support has been
+    // activated post-deployment.
+    bool private _tstoreSupport;
+
+    /*
+     * ------------------------------------------------------------------------+
+     * Opcode      | Mnemonic         | Stack              | Memory            |
+     * ------------------------------------------------------------------------|
+     * 60 0x02     | PUSH1 0x02       | 0x02               |                   |
+     * 60 0x1e     | PUSH1 0x1e       | 0x1e 0x02          |                   |
+     * 61 0x3d5c   | PUSH2 0x3d5c     | 0x3d5c 0x1e 0x02   |                   |
+     * 3d          | RETURNDATASIZE   | 0 0x3d5c 0x1e 0x02 |                   |
+     *                                                                         |
+     * :: store deployed bytecode in memory: (3d) RETURNDATASIZE (5c) TLOAD :: |
+     * 52          | MSTORE           | 0x1e 0x02          | [0..0x20): 0x3d5c |
+     * f3          | RETURN           |                    | [0..0x20): 0x3d5c |
+     * ------------------------------------------------------------------------+
+     */
+    uint256 constant _TLOAD_TEST_PAYLOAD = 0x6002_601e_613d5c_3d_52_f3;
+    uint256 constant _TLOAD_TEST_PAYLOAD_LENGTH = 0x0a;
+    uint256 constant _TLOAD_TEST_PAYLOAD_OFFSET = 0x16;
+
     address constant _CONTRACT_DEPLOYER_SYSTEM_CONTRACT =
         0x0000000000000000000000000000000000008006;
+
+    // Declare an immutable variable to store the tstore test contract address.
+    address private immutable _tloadTestContract;
+
+    // Declare an immutable variable to store the initial TSTORE support status.
+    bool private immutable _tstoreInitialSupport;
+
+    // Declare an immutable function type variable for the _setTstorish function
+    // based on chain support for tstore at time of deployment.
+    function(uint256, uint256) internal immutable _setTstorish;
+
+    // Declare an immutable function type variable for the _getTstorish function
+    // based on chain support for tstore at time of deployment.
+    function(uint256) view returns (uint256) internal immutable _getTstorish;
+
+    // Declare an immutable function type variable for the _clearTstorish function
+    // based on chain support for tstore at time of deployment.
+    function(uint256) internal immutable _clearTstorish;
+
+    // Declare a few custom revert error types.
+    error TStoreAlreadyActivated();
+    error TStoreNotSupported();
+    error TloadTestContractDeploymentFailed();
+    error OnlyDirectCalls();
 
     /**
      * @dev Determine TSTORE availability during deployment. This involves
@@ -47,14 +92,43 @@ contract ZkTstorish is Tstorish {
     }
 
     /**
+     * @dev External function to activate TSTORE usage. Does not need to be
+     *      called if TSTORE is supported from deployment, and only needs to be
+     *      called once. Reverts if TSTORE has already been activated or if the
+     *      opcode is not available. Note that this must be called directly from
+     *      an externally-owned account to avoid potential reentrancy issues.
+     */
+    function __activateTstore() external {
+        // Ensure this function is triggered from an externally-owned account.
+        if (msg.sender != tx.origin) {
+            revert OnlyDirectCalls();
+        }
+
+        // Determine if TSTORE can potentially be activated.
+        if (_tstoreInitialSupport || _tstoreSupport) {
+            revert TStoreAlreadyActivated();
+        }
+
+        // Determine if TSTORE can be activated and revert if not.
+        if (!_testTload(_tloadTestContract)) {
+            revert TStoreNotSupported();
+        }
+
+        // Mark TSTORE as activated.
+        _tstoreSupport = true;
+    }
+
+    /**
      * @dev Private function to set a TSTORISH value. Assigned to _setTstorish
      *      internal function variable at construction if chain has tstore support.
      *
      * @param storageSlot The slot to write the TSTORISH value to.
      * @param value       The value to write to the given storage slot.
      */
-    function _setTstore(uint256 storageSlot, uint256 value) private override {
-        super._setTstore(storageSlot, value);
+    function _setTstore(uint256 storageSlot, uint256 value) private {
+        assembly {
+            tstore(storageSlot, value)
+        }
     }
 
     /**
@@ -68,8 +142,16 @@ contract ZkTstorish is Tstorish {
     function _setTstorishWithSstoreFallback(
         uint256 storageSlot,
         uint256 value
-    ) private override {
-        set._setTstorishWithSstoreFallback(storageSlot, value);
+    ) private {
+        if (_tstoreSupport) {
+            assembly {
+                tstore(storageSlot, value)
+            }
+        } else {
+            assembly {
+                sstore(storageSlot, value)
+            }
+        }
     }
 
     /**
@@ -82,8 +164,10 @@ contract ZkTstorish is Tstorish {
      */
     function _getTstore(
         uint256 storageSlot
-    ) private view override returns (uint256 value) {
-        super._getTstore(storageSlot);
+    ) private view returns (uint256 value) {
+        assembly {
+            value := tload(storageSlot)
+        }
     }
 
     /**
@@ -97,8 +181,16 @@ contract ZkTstorish is Tstorish {
      */
     function _getTstorishWithSloadFallback(
         uint256 storageSlot
-    ) private view override returns (uint256 value) {
-        super._getTstorishWithSloadFallback(storageSlot);
+    ) private view returns (uint256 value) {
+        if (_tstoreSupport) {
+            assembly {
+                value := tload(storageSlot)
+            }
+        } else {
+            assembly {
+                value := sload(storageSlot)
+            }
+        }
     }
 
     /**
@@ -107,8 +199,10 @@ contract ZkTstorish is Tstorish {
      *
      * @param storageSlot The slot to clear the TSTORISH value for.
      */
-    function _clearTstore(uint256 storageSlot) private override {
-        super._clearTstore(storageSlot);
+    function _clearTstore(uint256 storageSlot) private {
+        assembly {
+            tstore(storageSlot, 0)
+        }
     }
 
     /**
@@ -118,21 +212,23 @@ contract ZkTstorish is Tstorish {
      *
      * @param storageSlot The slot to clear the TSTORISH value for.
      */
-    function _clearTstorishWithSstoreFallback(
-        uint256 storageSlot
-    ) private override {
-        super._clearTstorishWithSstoreFallback(storageSlot);
+    function _clearTstorishWithSstoreFallback(uint256 storageSlot) private {
+        if (_tstoreSupport) {
+            assembly {
+                tstore(storageSlot, 0)
+            }
+        } else {
+            assembly {
+                sstore(storageSlot, 0)
+            }
+        }
     }
 
     /**
      * @dev Private function to deploy a test contract that utilizes TLOAD as
      *      part of its fallback logic.
      */
-    function _prepareTloadTest()
-        private
-        override
-        returns (address contractAddress)
-    {
+    function _prepareTloadTest() private returns (address contractAddress) {
         // Check if chain is zk stack by checking for ContractDeployer system contract
         uint256 size;
         assembly {
@@ -165,6 +261,9 @@ contract ZkTstorish is Tstorish {
     function _testTload(
         address tloadTestContract
     ) private view returns (bool ok) {
-        super._testTload(tloadTestContract);
+        // Call the test contract, which will perform a TLOAD test. If the call
+        // does not revert, then TLOAD/TSTORE is supported. Do not forward all
+        // available gas, as all forwarded gas will be consumed on revert.
+        (ok, ) = tloadTestContract.staticcall{gas: gasleft() / 10}("");
     }
 }
