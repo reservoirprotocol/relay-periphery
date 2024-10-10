@@ -7,30 +7,28 @@ contract TloadTest {
         bytes memory result;
 
         assembly {
-            let tloadResult
-
             // Attempt to use TLOAD
-            tloadResult := tload(0)
+            let tloadResult := tload(0)
 
             // Store the result
             mstore(0x80, tloadResult)
 
-            // Set success to true if we reach this point (i.e., if TLOAD didn't revert)
+            // Set success to true if we reach this point
             success := 1
 
-            // Set result to the free memory pointer
+            // Prepare the result bytes
             result := mload(0x40)
+            mstore(result, 0x20) // Length of the result (32 bytes)
+            mstore(add(result, 0x20), tloadResult) // TLOAD result
+            mstore(0x40, add(result, 0x40)) // Update free memory pointer
 
-            // Store the length of the result as 32 bytes
-            mstore(result, 0x20)
-
-            // Store the TLOAD result at the next 32 bytes
-            mstore(add(result, 0x20), tloadResult)
-
-            // Update the free memory pointer
-            mstore(0x40, add(result, 0x40))
+            // Prepare the return data
+            let returnData := mload(0x40)
+            mstore(returnData, success)
+            mstore(add(returnData, 0x20), 0x40) // Offset of the result bytes
+            mstore(add(returnData, 0x40), mload(result)) // Length of result
+            mstore(add(returnData, 0x60), mload(add(result, 0x20))) // Result data
+            return(returnData, 0x80)
         }
-
-        return (success, result);
     }
 }
