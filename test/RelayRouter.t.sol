@@ -6,6 +6,7 @@ import {StdUtils} from "forge-std/StdUtils.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IAllowanceHolder} from "0x-settler/src/allowanceholder/IAllowanceHolder.sol";
 import {Multicaller} from "multicaller/src/Multicaller.sol";
 import {Permit2} from "permit2-relay/src/Permit2.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
@@ -47,6 +48,8 @@ contract RelayRouterTest is Test, BaseRelayTest {
     Permit2 permit2 = Permit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
     Multicaller multicaller =
         Multicaller(payable(0x0000000000002Bdbf1Bf3279983603Ec279CC6dF));
+    IAllowanceHolder allowanceHolder =
+        IAllowanceHolder(payable(0x0000000000001fF3684f28c67538d4D072C22734));
     RelayRouter router;
     ApprovalProxy approvalProxy;
 
@@ -62,6 +65,10 @@ contract RelayRouterTest is Test, BaseRelayTest {
     bytes32 public constant _FULL_RELAYER_WITNESS_BATCH_TYPEHASH =
         keccak256(
             "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)"
+        );
+    bytes32 public constant _PERMIT_BATCH_TRANSFER_FROM_TYPEHASH =
+        keccak256(
+            "PermitBatchTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)"
         );
     string public constant _PERMIT_TRANSFER_TYPEHASH_STUB =
         "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,";
@@ -180,6 +187,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         // Get the permit signature
         bytes memory permitSig = getPermitBatchWitnessSignature(
             permit,
+            address(router),
             alice.key,
             _FULL_RELAYER_WITNESS_BATCH_TYPEHASH,
             witness,
@@ -582,6 +590,118 @@ contract RelayRouterTest is Test, BaseRelayTest {
         assertGt(IERC20(DAI).balanceOf(alice.addr), 990 * 10 ** 18);
     }
 
+    function testAllowanceHolder__swapExactTokensForTokens() public {
+        // Deal alice some USDC
+        deal(USDC, alice.addr, 1000 * 10 ** 6);
+
+        vm.prank(alice.addr);
+        IERC20(USDC).approve(address(allowanceHolder), 1000 * 10 ** 6);
+
+        // Create the permit
+        ISignatureTransfer.TokenPermissions[]
+            memory permitted = new ISignatureTransfer.TokenPermissions[](1);
+        permitted[0] = ISignatureTransfer.TokenPermissions({
+            token: USDC,
+            amount: 1000 * 10 ** 6
+        });
+
+        ISignatureTransfer.PermitBatchTransferFrom
+            memory permit = ISignatureTransfer.PermitBatchTransferFrom({
+                permitted: permitted,
+                nonce: 1,
+                deadline: block.timestamp + 100
+            });
+
+        // Get the witness
+        bytes32 witness = keccak256(
+            abi.encode(_EIP_712_RELAYER_WITNESS_TYPE_HASH, relayer.addr)
+        );
+
+        // Get the permit signature
+        bytes memory permitSig = getPermitBatchWitnessSignature(
+            permit,
+            address(router),
+            alice.key,
+            _FULL_RELAYER_WITNESS_BATCH_TYPEHASH,
+            witness,
+            DOMAIN_SEPARATOR
+        );
+
+        // RelayRouter approves UniV2Router to spend USDC
+        address[] memory approvalTarget = new address[](1);
+        approvalTarget[0] = USDC;
+
+        bytes[] memory approvalData = new bytes[](1);
+        approvalData[0] = abi.encodeWithSelector(
+            IERC20.approve.selector,
+            ROUTER_V2,
+            1000 * 10 ** 6
+        );
+
+        uint256[] memory approvalValues = new uint256[](1);
+        approvalValues[0] = 0;
+
+        // Create the path from usdc to dai
+        address[] memory path = new address[](2);
+        path[0] = USDC;
+        path[1] = DAI;
+
+        uint256 amount = 1000 * 10 ** 6;
+
+        address[] memory targets = new address[](3);
+        targets[0] = USDC;
+        targets[1] = address(allowanceHolder);
+        targets[2] = ROUTER_V2;
+        bytes[] memory datas = new bytes[](3);
+        datas[0] = abi.encodeWithSelector(
+            IERC20.approve.selector,
+            ROUTER_V2,
+            amount
+        );
+        datas[1] = abi.encodeWithSelector(
+            IAllowanceHolder.transferFrom.selector,
+            USDC,
+            alice.addr,
+            address(router),
+            amount
+        );
+        // RelayRouter swaps USDC for DAI and alice receives output
+        datas[2] = abi.encodeWithSelector(
+            IUniswapV2Router01.swapExactTokensForTokens.selector,
+            1000 * 10 ** 6,
+            990 * 10 ** 18,
+            path,
+            alice.addr,
+            block.timestamp
+        );
+
+        uint256[] memory values = new uint256[](3);
+        values[0] = 0;
+        values[1] = 0;
+        values[2] = 0;
+
+        bytes memory allowanceHolderData = abi.encodeWithSelector(
+            router.multicall.selector,
+            targets,
+            datas,
+            values,
+            alice.addr
+        );
+
+        vm.prank(alice.addr);
+        allowanceHolder.exec(
+            address(router),
+            USDC,
+            amount,
+            payable(address(router)),
+            allowanceHolderData
+        );
+
+        assertEq(IERC20(USDC).balanceOf(alice.addr), 0);
+        assertEq(IERC20(USDC).balanceOf(address(router)), 0);
+        assertGt(IERC20(DAI).balanceOf(alice.addr), 990 * 10 ** 18);
+    }
+
     function testApprovalProxyMulticall__RevertNoOpERC20() public {
         NoOpERC20 noOpERC20 = new NoOpERC20();
         vm.startPrank(alice.addr);
@@ -820,6 +940,43 @@ contract RelayRouterTest is Test, BaseRelayTest {
         assertEq(erc721.ownerOf(1), alice.addr);
     }
 
+    function getPermitTransferSignature(
+        ISignatureTransfer.PermitBatchTransferFrom memory permit,
+        address spender,
+        uint256 privateKey,
+        bytes32 domainSeparator
+    ) internal pure returns (bytes memory sig) {
+        bytes32[] memory tokenPermissions = new bytes32[](
+            permit.permitted.length
+        );
+        for (uint256 i = 0; i < permit.permitted.length; ++i) {
+            tokenPermissions[i] = keccak256(
+                bytes.concat(
+                    _TOKEN_PERMISSIONS_TYPEHASH,
+                    abi.encode(permit.permitted[i])
+                )
+            );
+        }
+        bytes32 msgHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                domainSeparator,
+                keccak256(
+                    abi.encode(
+                        _PERMIT_BATCH_TRANSFER_FROM_TYPEHASH,
+                        keccak256(abi.encodePacked(tokenPermissions)),
+                        spender,
+                        permit.nonce,
+                        permit.deadline
+                    )
+                )
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
+        return bytes.concat(r, s, bytes1(v));
+    }
+
     function getPermitWitnessTransferSignature(
         ISignatureTransfer.PermitTransferFrom memory permit,
         uint256 privateKey,
@@ -854,6 +1011,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
 
     function getPermitBatchWitnessSignature(
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
+        address spender,
         uint256 privateKey,
         bytes32 typeHash,
         bytes32 witness,
@@ -876,7 +1034,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
                     abi.encode(
                         typeHash,
                         keccak256(abi.encodePacked(tokenPermissions)),
-                        address(router),
+                        spender,
                         permit.nonce,
                         permit.deadline,
                         witness
@@ -887,5 +1045,20 @@ contract RelayRouterTest is Test, BaseRelayTest {
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
         return bytes.concat(r, s, bytes1(v));
+    }
+
+    function defaultERC20PermitTransfer(
+        address token,
+        uint256 amount,
+        uint256 nonce
+    )
+        internal
+        view
+        returns (ISignatureTransfer.PermitTransferFrom memory result)
+    {
+        result.permitted.token = token;
+        result.permitted.amount = amount;
+        result.nonce = nonce;
+        result.deadline = block.timestamp + 100;
     }
 }
