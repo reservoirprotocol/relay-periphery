@@ -68,8 +68,7 @@ contract ApprovalProxy is Ownable {
             IERC20(tokens[i]).safeTransferFrom(msg.sender, router, amounts[i]);
         }
 
-        // Call delegatecallMulticall on the router. The router will perform a
-        // delegatecall to the Multicaller.
+        // Call multicall on the router
         // @dev msg.sender for the calls to targets will be the router
         bytes memory data = IRelayRouter(router).multicall{value: msg.value}(
             targets,
