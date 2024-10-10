@@ -48,7 +48,7 @@ contract RelayRouter is Multicall3, Tstorish {
 
     /// @notice Withdraw function in case funds get stuck in contract
     /// @dev Any account can call this function to withdraw the contract's balance
-    function withdraw() external {
+    function withdraw() public {
         _send(msg.sender, address(this).balance);
     }
 
@@ -71,7 +71,7 @@ contract RelayRouter is Multicall3, Tstorish {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable returns (bytes[] memory) {
+    ) external payable returns (Result[] memory returnData) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -82,7 +82,6 @@ contract RelayRouter is Multicall3, Tstorish {
             _handlePermitBatch(user, permit, permitSignature);
         }
 
-        // Perform the multicall and send leftover to refundTo
         // Perform the multicall and send leftover to refundTo
         bytes[] memory data = _aggregate(targets, datas, values, refundTo);
 
@@ -98,16 +97,25 @@ contract RelayRouter is Multicall3, Tstorish {
     /// @param recipient The address to set as recipient of ERC721/ERC1155 mints
     function multicall(
         Call3Value[] calldata calls,
-        address recipient
+        address[] calldata tokens,
+        address[] calldata recipients,
+        address nftRecipient
     ) external payable returns (Result[] memory returnData) {
-        // Set the recipient in storage
-        _setRecipient(recipient);
+        // Set the NFT recipient if provided
+        if (nftRecipient != address(0)) {
+            _setRecipient(nftRecipient);
+        }
 
         // Perform the multicall
         Result[] memory returnData = _aggregate3Value(calls);
 
         // Clear the recipient in storage
         _clearRecipient();
+
+        // Refund any leftover ETH to the sender
+        if (address(this).balance > 0) {
+            _send(msg.sender, address(this).balance);
+        }
 
         return data;
     }
@@ -119,7 +127,7 @@ contract RelayRouter is Multicall3, Tstorish {
     function cleanupErc20s(
         address[] calldata tokens,
         address[] calldata recipients
-    ) external {
+    ) public {
         // Revert if array lengths do not match
         if (tokens.length != recipients.length) {
             revert ArrayLengthsMismatch();
