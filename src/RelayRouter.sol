@@ -61,34 +61,21 @@ contract RelayRouter is Multicall3, Tstorish {
     /// @dev msg.value will persist across all calls in the multicall
     /// @param user The address of the user
     /// @param permit The permit details
-    /// @param targets The addresses of the contracts to call
-    /// @param datas The calldata for each call
-    /// @param values The value to send with each call
-    /// @param refundTo The address to refund any leftover ETH to
+    /// @param calls The calls to perform
     /// @param permitSignature The signature for the permit
     function permitMulticall(
         address user,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        address[] calldata targets,
-        bytes[] calldata datas,
-        uint256[] calldata values,
-        address refundTo,
+        Call3Value[] calldata calls,
         bytes memory permitSignature
     ) external payable returns (Result[] memory returnData) {
-        // Revert if array lengths do not match
-        if (targets.length != datas.length || datas.length != values.length) {
-            revert ArrayLengthsMismatch();
-        }
-
         if (permitSignature.length != 0) {
             // Use permit to transfer tokens from user to router
             _handlePermitBatch(user, permit, permitSignature);
         }
 
         // Perform the multicall and send leftover to refundTo
-        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
-
-        return data;
+        returnData = _aggregate3Value(calls);
     }
 
     /// @notice Call the Multicaller with a delegatecall to set the ERC20Router as the
@@ -97,12 +84,9 @@ contract RelayRouter is Multicall3, Tstorish {
     ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in recipient
     ///         Be sure to transfer ERC20s or ETH out of the router as part of the multicall
     /// @param calls The calls to perform
-    /// @param tokens The addresses of the ERC20 tokens
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     function multicall(
         Call3Value[] calldata calls,
-        address[] calldata tokens,
-        address[] calldata recipients,
         address nftRecipient
     ) external payable returns (Result[] memory returnData) {
         // Set the NFT recipient if provided
