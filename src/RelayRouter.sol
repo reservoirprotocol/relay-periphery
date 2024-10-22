@@ -30,6 +30,9 @@ contract RelayRouter is Multicall3, Tstorish {
     /// @notice Revert if no recipient is set
     error NoRecipientSet();
 
+    /// @notice Revert if the array lengths do not match
+    error ArrayLengthsMismatch();
+
     uint256 RECIPIENT_STORAGE_SLOT =
         uint256(keccak256("ERC20Router.recipient"));
 
@@ -94,7 +97,8 @@ contract RelayRouter is Multicall3, Tstorish {
     ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in recipient
     ///         Be sure to transfer ERC20s or ETH out of the router as part of the multicall
     /// @param calls The calls to perform
-    /// @param recipient The address to set as recipient of ERC721/ERC1155 mints
+    /// @param tokens The addresses of the ERC20 tokens
+    /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     function multicall(
         Call3Value[] calldata calls,
         address[] calldata tokens,
@@ -107,7 +111,7 @@ contract RelayRouter is Multicall3, Tstorish {
         }
 
         // Perform the multicall
-        Result[] memory returnData = _aggregate3Value(calls);
+        returnData = _aggregate3Value(calls);
 
         // Clear the recipient in storage
         _clearRecipient();
@@ -116,8 +120,6 @@ contract RelayRouter is Multicall3, Tstorish {
         if (address(this).balance > 0) {
             _send(msg.sender, address(this).balance);
         }
-
-        return data;
     }
 
     /// @notice Send leftover ERC20 tokens to the refundTo address

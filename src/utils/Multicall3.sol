@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.12;
+pragma solidity ^0.8.12;
 
 /// @title Multicall3
 /// @notice Aggregate results from multiple function calls
@@ -120,7 +120,7 @@ contract Multicall3 {
             Result[] memory returnData
         )
     {
-        (blockNumber, blockHash, returnData) = tryBlockAndAggregate(
+        (blockNumber, blockHash, returnData) = _tryBlockAndAggregate(
             true,
             calls
         );
