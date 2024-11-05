@@ -1,27 +1,32 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-
-contract RelayDepositor {
+/// @title  DepositRouter
+/// @author Reservoir
+/// @notice A public router contract for linking onchain deposits to Relay requestIds.
+///         Verifiers can listen to emitted Deposit events to link a deposit to its
+///         corresponding order.
+contract DepositRouter {
     /// @notice Revert if native transfer failed
     error NativeTransferFailed();
 
-    /// @notice Event 
+    /// @notice Emit event when deposit is made
     event Deposit(address indexed to, address indexed token, uint256 value, bytes4 indexed requestId);
 
     constructor() {}
 
-    // @dev There is no receive() hook since funds must be sent with msg.data
-    // containing the recipient address and requestId
+    /// @dev There is no receive() hook since funds must be sent with msg.data
+    // containing the recipient address and requestId. The requestId should be
+    // followed by the recipient address.
     fallback() external payable {
         // Decode the recipient address and requestId from msg.data
-        (address to, bytes4 requestId) = abi.decode(msg.data, (address, bytes4));
+        (bytes4 requestId, address to) = abi.decode(msg.data, (bytes4, address));
 
         // Transfer the funds to the recipient
         _send(to, msg.value);
 
         // Emit the Deposit event
-        emit Deposit(to, address(0), msg.value, id);
+        emit Deposit(to, address(0), msg.value, requestId);
     }
 
     /// @notice Transfer native tokens to `address to` and emit a Deposit event
