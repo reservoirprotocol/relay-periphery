@@ -14,6 +14,7 @@ import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {PermitSignature} from "permit2-relay/test/utils/PermitSignature.sol";
 import {ApprovalProxy} from "../src/ApprovalProxy.sol";
 import {RelayRouter} from "../src/RelayRouter.sol";
+import {Multicall3} from "../src/utils/Multicall3.sol";
 import {NoOpERC20} from "./mocks/NoOpERC20.sol";
 import {TestERC721} from "./mocks/TestERC721.sol";
 import {TestERC721_ERC20PaymentToken} from "./mocks/TestERC721_ERC20PaymentToken.sol";
@@ -22,6 +23,13 @@ import {IUniswapV2Router01} from "./interfaces/IUniswapV2Router02.sol";
 
 struct RelayerWitness {
     address relayer;
+}
+
+struct Call3Value {
+    address target;
+    bool allowFailure;
+    uint256 value;
+    bytes callData;
 }
 
 contract RelayRouterTest is Test, BaseRelayTest {
@@ -219,35 +227,35 @@ contract RelayRouterTest is Test, BaseRelayTest {
             1 ether
         );
 
-        address[] memory targets = new address[](4);
-        targets[0] = address(erc20_1);
-        targets[1] = address(erc20_2);
-        targets[2] = address(erc20_3);
-        targets[3] = address(erc20_1);
-
-        bytes[] memory datas = new bytes[](4);
-        datas[0] = calldata1;
-        datas[1] = calldata2;
-        datas[2] = calldata3;
-        datas[3] = calldata4;
-
-        uint256[] memory values = new uint256[](4);
-        values[0] = 0;
-        values[1] = 0;
-        values[2] = 0;
-        values[3] = 0;
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](4);
+        calls[0] = Multicall3.Call3Value({
+            target: address(erc20_1),
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
+        calls[1] = Multicall3.Call3Value({
+            target: address(erc20_2),
+            allowFailure: false,
+            value: 0,
+            callData: calldata2
+        });
+        calls[2] = Multicall3.Call3Value({
+            target: address(erc20_3),
+            allowFailure: false,
+            value: 0,
+            callData: calldata3
+        });
+        calls[3] = Multicall3.Call3Value({
+            target: address(erc20_1),
+            allowFailure: false,
+            value: 0,
+            callData: calldata4
+        });
 
         // Call the router as the relayer
         vm.prank(relayer.addr);
-        router.permitMulticall(
-            alice.addr,
-            permit,
-            targets,
-            datas,
-            values,
-            alice.addr,
-            permitSig
-        );
+        router.permitMulticall(alice.addr, permit, calls, permitSig);
 
         assertEq(erc20_1.balanceOf(bob.addr), 0.03 ether);
         assertEq(erc20_2.balanceOf(bob.addr), 0.15 ether);
@@ -267,8 +275,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         path[0] = WETH;
         path[1] = USDC;
 
-        bytes[] memory datas = new bytes[](1);
-        datas[0] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             IUniswapV2Router01.swapExactETHForTokens.selector,
             0,
             path,
@@ -276,17 +283,19 @@ contract RelayRouterTest is Test, BaseRelayTest {
             block.timestamp
         );
 
-        address[] memory targets = new address[](1);
-        targets[0] = ROUTER_V2;
-
-        uint256[] memory values = new uint256[](1);
-        values[0] = 1 ether;
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
+            target: ROUTER_V2,
+            allowFailure: false,
+            value: 1 ether,
+            callData: data
+        });
 
         uint256 aliceBalanceBefore = alice.addr.balance;
         uint256 aliceUSDCBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
 
         vm.prank(alice.addr);
-        router.multicall{value: 1 ether}(targets, datas, values, alice.addr);
+        router.multicall{value: 1 ether}(calls, address(0));
 
         uint256 aliceBalanceAfter = alice.addr.balance;
         uint256 aliceUSDCBalanceAfter = IERC20(USDC).balanceOf(alice.addr);
@@ -596,36 +605,6 @@ contract RelayRouterTest is Test, BaseRelayTest {
 
         vm.prank(alice.addr);
         IERC20(USDC).approve(address(allowanceHolder), 1000 * 10 ** 6);
-
-        // Create the permit
-        ISignatureTransfer.TokenPermissions[]
-            memory permitted = new ISignatureTransfer.TokenPermissions[](1);
-        permitted[0] = ISignatureTransfer.TokenPermissions({
-            token: USDC,
-            amount: 1000 * 10 ** 6
-        });
-
-        ISignatureTransfer.PermitBatchTransferFrom
-            memory permit = ISignatureTransfer.PermitBatchTransferFrom({
-                permitted: permitted,
-                nonce: 1,
-                deadline: block.timestamp + 100
-            });
-
-        // Get the witness
-        bytes32 witness = keccak256(
-            abi.encode(_EIP_712_RELAYER_WITNESS_TYPE_HASH, relayer.addr)
-        );
-
-        // Get the permit signature
-        bytes memory permitSig = getPermitBatchWitnessSignature(
-            permit,
-            address(router),
-            alice.key,
-            _FULL_RELAYER_WITNESS_BATCH_TYPEHASH,
-            witness,
-            DOMAIN_SEPARATOR
-        );
 
         // RelayRouter approves UniV2Router to spend USDC
         address[] memory approvalTarget = new address[](1);
