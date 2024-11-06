@@ -309,15 +309,14 @@ contract RelayRouterTest is Test, BaseRelayTest {
         path[0] = WETH;
         path[1] = USDC;
 
-        bytes[] memory datas = new bytes[](2);
-        datas[0] = abi.encodeWithSelector(
+        bytes memory calldata1 = abi.encodeWithSelector(
             IUniswapV2Router01.swapExactETHForTokens.selector,
             0,
             path,
             alice.addr,
             block.timestamp
         );
-        datas[1] = abi.encodeWithSelector(
+        bytes memory calldata2 = abi.encodeWithSelector(
             IUniswapV2Router01.swapExactETHForTokens.selector,
             0,
             path,
@@ -325,19 +324,25 @@ contract RelayRouterTest is Test, BaseRelayTest {
             block.timestamp
         );
 
-        address[] memory targets = new address[](2);
-        targets[0] = ROUTER_V2;
-        targets[1] = ROUTER_V2;
-
-        uint256[] memory values = new uint256[](2);
-        values[0] = 1 ether;
-        values[1] = 1 ether;
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](2);
+        calls[0] = Multicall3.Call3Value({
+            target: ROUTER_V2,
+            allowFailure: false,
+            value: 1 ether,
+            callData: calldata1
+        });
+        calls[1] = Multicall3.Call3Value({
+            target: ROUTER_V2,
+            allowFailure: false,
+            value: 1 ether,
+            callData: calldata2
+        });
 
         uint256 aliceBalanceBefore = alice.addr.balance;
         uint256 aliceUSDCBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
 
         vm.prank(alice.addr);
-        router.multicall{value: 2 ether}(targets, datas, values, alice.addr);
+        router.multicall{value: 2 ether}(calls, alice.addr);
 
         uint256 aliceBalanceAfter = alice.addr.balance;
         uint256 aliceUSDCBalanceAfter = IERC20(USDC).balanceOf(alice.addr);
@@ -356,30 +361,43 @@ contract RelayRouterTest is Test, BaseRelayTest {
         path[0] = WETH;
         path[1] = USDC;
 
-        bytes[] memory datas = new bytes[](3);
-        datas[0] = abi.encodeWithSelector(
+        bytes memory calldata1 = abi.encodeWithSelector(
             IUniswapV2Router01.swapExactETHForTokens.selector,
             0,
             path,
             address(router),
             block.timestamp
         );
-        datas[1] = abi.encodeWithSelector(
+        bytes memory calldata2 = abi.encodeWithSelector(
             IERC20.approve.selector,
             address(nft),
             type(uint256).max
         );
-        datas[2] = abi.encodeWithSelector(nft.mint.selector, alice.addr, 10);
+        bytes memory calldata3 = abi.encodeWithSelector(
+            nft.mint.selector,
+            alice.addr,
+            10
+        );
 
-        address[] memory targets = new address[](3);
-        targets[0] = ROUTER_V2;
-        targets[1] = USDC;
-        targets[2] = address(nft);
-
-        uint256[] memory values = new uint256[](3);
-        values[0] = 1 ether;
-        values[1] = 0;
-        values[2] = 0;
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](3);
+        Multicall3.Call3Value({
+            target: ROUTER_V2,
+            allowFailure: false,
+            value: 1 ether,
+            callData: calldata1
+        });
+        Multicall3.Call3Value({
+            target: USDC,
+            allowFailure: false,
+            value: 0,
+            callData: calldata2
+        });
+        Multicall3.Call3Value({
+            target: address(nft),
+            allowFailure: false,
+            value: 0,
+            callData: calldata3
+        });
 
         uint256 aliceBalanceBefore = alice.addr.balance;
         uint256 routerUSDCBalanceBefore = IERC20(USDC).balanceOf(
@@ -387,7 +405,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         );
 
         vm.prank(alice.addr);
-        router.multicall{value: 1 ether}(targets, datas, values, alice.addr);
+        router.multicall{value: 1 ether}(calls, alice.addr);
 
         uint256 aliceBalanceAfterMulticall = alice.addr.balance;
         uint256 routerUSDCBalanceAfterMulticall = IERC20(USDC).balanceOf(
@@ -421,8 +439,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         path[0] = WETH;
         path[1] = USDC;
 
-        bytes[] memory datas = new bytes[](1);
-        datas[0] = abi.encodeWithSelector(
+        bytes memory calldata1 = abi.encodeWithSelector(
             IUniswapV2Router01.swapExactETHForTokens.selector,
             0,
             path,
@@ -430,11 +447,13 @@ contract RelayRouterTest is Test, BaseRelayTest {
             block.timestamp
         );
 
-        address[] memory targets = new address[](1);
-        targets[0] = ROUTER_V2;
-
-        uint256[] memory values = new uint256[](1);
-        values[0] = 1 ether;
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
+            target: ROUTER_V2,
+            allowFailure: false,
+            value: 1 ether,
+            callData: calldata1
+        });
 
         uint256 aliceBalanceBefore = alice.addr.balance;
         uint256 aliceUSDCBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
@@ -443,10 +462,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
         router.permitMulticall{value: 1 ether}(
             alice.addr,
             emptyPermit,
-            targets,
-            datas,
-            values,
-            alice.addr,
+            calls,
             bytes("")
         );
 
@@ -462,20 +478,23 @@ contract RelayRouterTest is Test, BaseRelayTest {
         vm.prank(alice.addr);
         erc20_1.approve(address(router), 1 ether);
 
-        address[] memory targets = new address[](1);
-        targets[0] = address(erc20_1);
-        bytes[] memory datas = new bytes[](1);
-        datas[0] = abi.encodeWithSelector(
+        bytes memory calldata1 = abi.encodeWithSelector(
             IERC20.transferFrom.selector,
             alice.addr,
             bob.addr,
             1 ether
         );
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
+
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
+            target: address(erc20_1),
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
 
         vm.prank(bob.addr);
-        router.multicall(targets, datas, values, bob.addr);
+        router.multicall(calls, bob.addr);
 
         assertEq(erc20_1.balanceOf(bob.addr), 1 ether);
     }
@@ -498,6 +517,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
             bob.addr,
             1 ether
         );
+
         uint256[] memory values = new uint256[](1);
         values[0] = 0;
 
@@ -785,28 +805,28 @@ contract RelayRouterTest is Test, BaseRelayTest {
         // Deal router some USDT
         deal(USDT, address(router), 1000 * 10 ** 6);
 
-        address[] memory targets = new address[](1);
-        targets[0] = address(router);
-
-        bytes[] memory datas = new bytes[](1);
-
         address[] memory tokens = new address[](1);
         tokens[0] = USDT;
 
         address[] memory recipients = new address[](1);
         recipients[0] = relaySolver;
 
-        datas[0] = abi.encodeWithSelector(
+        bytes memory calldata1 = abi.encodeWithSelector(
             router.cleanupErc20s.selector,
             tokens,
             recipients
         );
 
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
+            target: address(router),
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
 
         vm.prank(relaySolver);
-        router.multicall(targets, datas, values, relaySolver);
+        router.multicall(calls, relaySolver);
 
         assertEq(IERC20(USDT).balanceOf(relaySolver), 1000 * 10 ** 6);
     }
@@ -858,21 +878,22 @@ contract RelayRouterTest is Test, BaseRelayTest {
     function testERC721__SafeMintCorrectRecipient() public {
         TestERC721 erc721 = new TestERC721();
 
-        address[] memory targets = new address[](1);
-        targets[0] = address(erc721);
-
-        bytes[] memory datas = new bytes[](1);
-        datas[0] = abi.encodeWithSignature(
+        bytes memory calldata1 = abi.encodeWithSignature(
             "safeMint(address,uint256)",
             address(router),
             1
         );
 
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
+            target: address(erc721),
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
 
         vm.prank(alice.addr);
-        router.multicall(targets, datas, values, alice.addr);
+        router.multicall(calls, alice.addr);
 
         assertEq(erc721.ownerOf(1), alice.addr);
     }
@@ -880,24 +901,30 @@ contract RelayRouterTest is Test, BaseRelayTest {
     function testERC721__MintMsgSender() public {
         TestERC721 erc721 = new TestERC721();
 
-        address[] memory targets = new address[](2);
-        targets[0] = address(erc721);
-        targets[1] = address(erc721);
-
-        bytes[] memory datas = new bytes[](2);
-        datas[0] = abi.encodeWithSignature("mint(uint256)", 1);
-        datas[1] = abi.encodeWithSignature(
+        bytes memory calldata1 = abi.encodeWithSignature("mint(uint256)", 1);
+        bytes memory calldata2 = abi.encodeWithSignature(
             "safeTransferFrom(address,address,uint256)",
             address(router),
             alice.addr,
             1
         );
 
-        uint256[] memory values = new uint256[](2);
-        values[0] = 0;
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](2);
+        calls[0] = Multicall3.Call3Value({
+            target: address(erc721),
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
+        calls[1] = Multicall3.Call3Value({
+            target: address(erc721),
+            allowFailure: false,
+            value: 0,
+            callData: calldata2
+        });
 
         vm.prank(alice.addr);
-        router.multicall(targets, datas, values, alice.addr);
+        router.multicall(calls, alice.addr);
 
         assertEq(erc721.ownerOf(1), alice.addr);
     }
@@ -908,13 +935,20 @@ contract RelayRouterTest is Test, BaseRelayTest {
         address[] memory targets = new address[](1);
         targets[0] = address(erc721);
 
-        bytes[] memory datas = new bytes[](1);
-        datas[0] = abi.encodeWithSignature("safeMint(uint256)", 1);
+        bytes memory calldata1 = abi.encodeWithSignature(
+            "safeMint(uint256)",
+            1
+        );
 
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
+            target: address(erc721),
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
 
-        router.multicall(targets, datas, values, alice.addr);
+        router.multicall(calls, alice.addr);
 
         assertEq(erc721.ownerOf(1), alice.addr);
     }
