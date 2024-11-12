@@ -6,6 +6,13 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IRelayRouter} from "../src/interfaces/IRelayRouter.sol";
 
+struct Call3Value {
+    address target;
+    bool allowFailure;
+    uint256 value;
+    bytes callData;
+}
+
 contract ApprovalProxy is Ownable {
     using SafeERC20 for IERC20;
 
