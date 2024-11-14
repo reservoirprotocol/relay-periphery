@@ -34,3 +34,6 @@
 [submodule "lib/0x-settler"]
 	path = lib/0x-settler
 	url = https://github.com/0xProject/0x-settler
+[submodule "lib/seaport-1.5"]
+	path = lib/seaport-1.5
+	url = https://github.com/ProjectOpenSea/seaport

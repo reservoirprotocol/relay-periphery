@@ -1,5 +1,6 @@
 [profile.default]
-solc_version = "0.8.25"
+auto_detect_solc = true
+evm_version = "cancun"
 src = "src"
 out = "out"
 libs = ["lib"]
