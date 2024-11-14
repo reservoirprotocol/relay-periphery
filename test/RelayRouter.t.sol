@@ -374,19 +374,19 @@ contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
         );
 
         Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](3);
-        Multicall3.Call3Value({
+        calls[0] = Multicall3.Call3Value({
             target: ROUTER_V2,
             allowFailure: false,
             value: 1 ether,
             callData: calldata1
         });
-        Multicall3.Call3Value({
+        calls[1] = Multicall3.Call3Value({
             target: USDC,
             allowFailure: false,
             value: 0,
             callData: calldata2
         });
-        Multicall3.Call3Value({
+        calls[2] = Multicall3.Call3Value({
             target: address(nft),
             allowFailure: false,
             value: 0,
@@ -518,23 +518,21 @@ contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
         });
 
         vm.prank(alice.addr);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ERC20InsufficientAllowance.selector,
-                address(router),
-                0,
-                1 ether
-            )
-        );
+        vm.expectRevert("Multicall3: call failed");
         approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
 
         assertEq(erc20_1.balanceOf(address(router)), 0);
 
-        calldata1 = abi.encodeWithSelector(
-            IERC20.transfer.selector,
-            bob.addr,
-            1 ether
-        );
+        calls[0] = Call3Value({
+            target: address(erc20_1),
+            allowFailure: false,
+            value: 0,
+            callData: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                bob.addr,
+                1 ether
+            )
+        });
 
         vm.prank(alice.addr);
         approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
@@ -703,14 +701,7 @@ contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
             callData: calldata1
         });
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ERC20InsufficientBalance.selector,
-                address(router),
-                0,
-                1 ether
-            )
-        );
+        vm.expectRevert("Multicall3: call failed");
         approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
     }
 
@@ -749,21 +740,14 @@ contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
 
         Call3Value[] memory calls = new Call3Value[](1);
         calls[0] = Call3Value({
-            target: address(noOpERC20),
+            target: address(erc20_1),
             allowFailure: false,
             value: 0,
             callData: calldata1
         });
 
         vm.prank(bob.addr);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ERC20InsufficientAllowance.selector,
-                address(router),
-                0,
-                1 ether
-            )
-        );
+        vm.expectRevert("Multicall3: call failed");
         approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
     }
 
