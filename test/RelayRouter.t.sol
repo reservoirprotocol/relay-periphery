@@ -15,6 +15,7 @@ import {PermitSignature} from "permit2-relay/test/utils/PermitSignature.sol";
 import {ApprovalProxy} from "../src/ApprovalProxy.sol";
 import {RelayRouter} from "../src/RelayRouter.sol";
 import {Multicall3} from "../src/utils/Multicall3.sol";
+import {RelayStructs} from "../src/utils/RelayStructs.sol";
 import {NoOpERC20} from "./mocks/NoOpERC20.sol";
 import {TestERC721} from "./mocks/TestERC721.sol";
 import {TestERC721_ERC20PaymentToken} from "./mocks/TestERC721_ERC20PaymentToken.sol";
@@ -25,14 +26,7 @@ struct RelayerWitness {
     address relayer;
 }
 
-struct Call3Value {
-    address target;
-    bool allowFailure;
-    uint256 value;
-    bytes callData;
-}
-
-contract RelayRouterTest is Test, BaseRelayTest {
+contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
     using SafeERC20 for IERC20;
 
     error Unauthorized();
@@ -508,18 +502,20 @@ contract RelayRouterTest is Test, BaseRelayTest {
         tokens[0] = address(erc20_1);
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1 ether;
-        address[] memory targets = new address[](1);
-        targets[0] = address(erc20_1);
-        bytes[] memory datas = new bytes[](1);
-        datas[0] = abi.encodeWithSelector(
+        bytes memory calldata1 = abi.encodeWithSelector(
             IERC20.transferFrom.selector,
             alice.addr,
             bob.addr,
             1 ether
         );
 
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
+        Call3Value[] memory calls = new Call3Value[](1);
+        calls[0] = Call3Value({
+            target: address(erc20_1),
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
 
         vm.prank(alice.addr);
         vm.expectRevert(
@@ -530,32 +526,18 @@ contract RelayRouterTest is Test, BaseRelayTest {
                 1 ether
             )
         );
-        approvalProxy.transferAndMulticall(
-            tokens,
-            amounts,
-            targets,
-            datas,
-            values,
-            alice.addr
-        );
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
 
         assertEq(erc20_1.balanceOf(address(router)), 0);
 
-        datas[0] = abi.encodeWithSelector(
+        calldata1 = abi.encodeWithSelector(
             IERC20.transfer.selector,
             bob.addr,
             1 ether
         );
 
         vm.prank(alice.addr);
-        approvalProxy.transferAndMulticall(
-            tokens,
-            amounts,
-            targets,
-            datas,
-            values,
-            alice.addr
-        );
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
 
         assertEq(erc20_1.balanceOf(bob.addr), 1 ether);
     }
@@ -579,19 +561,14 @@ contract RelayRouterTest is Test, BaseRelayTest {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1000 * 10 ** 6;
 
-        address[] memory targets = new address[](2);
-        targets[0] = USDC;
-        targets[1] = ROUTER_V2;
-
-        bytes[] memory datas = new bytes[](2);
         // RelayRouter approves UniV2Router to spend USDC
-        datas[0] = abi.encodeWithSelector(
+        bytes memory calldata1 = abi.encodeWithSelector(
             IERC20.approve.selector,
             ROUTER_V2,
             1000 * 10 ** 6
         );
         // RelayRouter swaps USDC for DAI and alice receives output
-        datas[1] = abi.encodeWithSelector(
+        bytes memory calldata2 = abi.encodeWithSelector(
             IUniswapV2Router01.swapExactTokensForTokens.selector,
             1000 * 10 ** 6,
             990 * 10 ** 18,
@@ -600,19 +577,22 @@ contract RelayRouterTest is Test, BaseRelayTest {
             block.timestamp
         );
 
-        uint256[] memory values = new uint256[](2);
-        values[0] = 0;
-        values[1] = 0;
+        Call3Value[] memory calls = new Call3Value[](2);
+        calls[0] = Call3Value({
+            target: USDC,
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
+        calls[1] = Call3Value({
+            target: ROUTER_V2,
+            allowFailure: false,
+            value: 0,
+            callData: calldata2
+        });
 
         vm.prank(alice.addr);
-        approvalProxy.transferAndMulticall(
-            tokens,
-            amounts,
-            targets,
-            datas,
-            values,
-            alice.addr
-        );
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
 
         assertEq(IERC20(USDC).balanceOf(alice.addr), 0);
         assertEq(IERC20(USDC).balanceOf(address(router)), 0);
@@ -626,20 +606,6 @@ contract RelayRouterTest is Test, BaseRelayTest {
         vm.prank(alice.addr);
         IERC20(USDC).approve(address(allowanceHolder), 1000 * 10 ** 6);
 
-        // RelayRouter approves UniV2Router to spend USDC
-        address[] memory approvalTarget = new address[](1);
-        approvalTarget[0] = USDC;
-
-        bytes[] memory approvalData = new bytes[](1);
-        approvalData[0] = abi.encodeWithSelector(
-            IERC20.approve.selector,
-            ROUTER_V2,
-            1000 * 10 ** 6
-        );
-
-        uint256[] memory approvalValues = new uint256[](1);
-        approvalValues[0] = 0;
-
         // Create the path from usdc to dai
         address[] memory path = new address[](2);
         path[0] = USDC;
@@ -647,25 +613,22 @@ contract RelayRouterTest is Test, BaseRelayTest {
 
         uint256 amount = 1000 * 10 ** 6;
 
-        address[] memory targets = new address[](3);
-        targets[0] = USDC;
-        targets[1] = address(allowanceHolder);
-        targets[2] = ROUTER_V2;
-        bytes[] memory datas = new bytes[](3);
-        datas[0] = abi.encodeWithSelector(
+        bytes memory calldata1 = abi.encodeWithSelector(
             IERC20.approve.selector,
             ROUTER_V2,
             amount
         );
-        datas[1] = abi.encodeWithSelector(
+
+        bytes memory calldata2 = abi.encodeWithSelector(
             IAllowanceHolder.transferFrom.selector,
             USDC,
             alice.addr,
             address(router),
             amount
         );
+
         // RelayRouter swaps USDC for DAI and alice receives output
-        datas[2] = abi.encodeWithSelector(
+        bytes memory calldata3 = abi.encodeWithSelector(
             IUniswapV2Router01.swapExactTokensForTokens.selector,
             1000 * 10 ** 6,
             990 * 10 ** 18,
@@ -674,16 +637,29 @@ contract RelayRouterTest is Test, BaseRelayTest {
             block.timestamp
         );
 
-        uint256[] memory values = new uint256[](3);
-        values[0] = 0;
-        values[1] = 0;
-        values[2] = 0;
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](3);
+        calls[0] = Multicall3.Call3Value({
+            target: USDC,
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
+        calls[1] = Multicall3.Call3Value({
+            target: address(allowanceHolder),
+            allowFailure: false,
+            value: 0,
+            callData: calldata2
+        });
+        calls[2] = Multicall3.Call3Value({
+            target: ROUTER_V2,
+            allowFailure: false,
+            value: 0,
+            callData: calldata3
+        });
 
         bytes memory allowanceHolderData = abi.encodeWithSelector(
             router.multicall.selector,
-            targets,
-            datas,
-            values,
+            calls,
             alice.addr
         );
 
@@ -713,19 +689,19 @@ contract RelayRouterTest is Test, BaseRelayTest {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1 ether;
 
-        address[] memory targets = new address[](1);
-        targets[0] = address(noOpERC20);
-
-        bytes[] memory datas = new bytes[](1);
-        // ERC20Router approves UniV2Router to spend USDC
-        datas[0] = abi.encodeWithSelector(
+        bytes memory calldata1 = abi.encodeWithSelector(
             IERC20.transfer.selector,
             bob.addr,
             1 ether
         );
 
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
+        Call3Value[] memory calls = new Call3Value[](1);
+        calls[0] = Call3Value({
+            target: address(noOpERC20),
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -735,14 +711,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
                 1 ether
             )
         );
-        approvalProxy.transferAndMulticall(
-            tokens,
-            amounts,
-            targets,
-            datas,
-            values,
-            alice.addr
-        );
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
     }
 
     function testApprovalProxySetRouter() public {
@@ -770,17 +739,21 @@ contract RelayRouterTest is Test, BaseRelayTest {
         tokens[0] = address(noOpERC20);
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1 ether;
-        address[] memory targets = new address[](1);
-        targets[0] = address(erc20_1);
-        bytes[] memory datas = new bytes[](1);
-        datas[0] = abi.encodeWithSelector(
+
+        bytes memory calldata1 = abi.encodeWithSelector(
             IERC20.transferFrom.selector,
             alice.addr,
             bob.addr,
             1 ether
         );
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
+
+        Call3Value[] memory calls = new Call3Value[](1);
+        calls[0] = Call3Value({
+            target: address(noOpERC20),
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
 
         vm.prank(bob.addr);
         vm.expectRevert(
@@ -791,14 +764,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
                 1 ether
             )
         );
-        approvalProxy.transferAndMulticall(
-            tokens,
-            amounts,
-            targets,
-            datas,
-            values,
-            alice.addr
-        );
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
     }
 
     function testUSDTCleanupWithSafeERC20() public {
@@ -841,21 +807,22 @@ contract RelayRouterTest is Test, BaseRelayTest {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1000 * 10 ** 6;
 
-        address[] memory targets = new address[](1);
-        targets[0] = address(router);
-
         address[] memory recipients = new address[](1);
         recipients[0] = relaySolver;
 
-        bytes[] memory datas = new bytes[](1);
-        datas[0] = abi.encodeWithSelector(
+        bytes memory calldata1 = abi.encodeWithSelector(
             router.cleanupErc20s.selector,
             tokens,
             recipients
         );
 
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
+        Call3Value[] memory calls = new Call3Value[](1);
+        calls[0] = Call3Value({
+            target: address(router),
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
 
         vm.startPrank(relaySolver);
         IERC20(USDT).safeIncreaseAllowance(
@@ -863,14 +830,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
             1000 * 10 ** 6
         );
 
-        approvalProxy.transferAndMulticall(
-            tokens,
-            amounts,
-            targets,
-            datas,
-            values,
-            relaySolver
-        );
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, relaySolver);
 
         assertEq(IERC20(USDT).balanceOf(relaySolver), 1000 * 10 ** 6);
     }
