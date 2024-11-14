@@ -8,13 +8,13 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
-import {Multicaller} from "./utils/Multicaller.sol";
+import {Multicall3} from "./utils/Multicall3.sol";
 
 struct RelayerWitness {
     address relayer;
 }
 
-contract RelayRouter is Multicaller, Tstorish {
+contract RelayRouter is Multicall3, Tstorish {
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
@@ -29,6 +29,9 @@ contract RelayRouter is Multicaller, Tstorish {
 
     /// @notice Revert if no recipient is set
     error NoRecipientSet();
+
+    /// @notice Revert if the array lengths do not match
+    error ArrayLengthsMismatch();
 
     uint256 RECIPIENT_STORAGE_SLOT =
         uint256(keccak256("ERC20Router.recipient"));
@@ -48,7 +51,7 @@ contract RelayRouter is Multicaller, Tstorish {
 
     /// @notice Withdraw function in case funds get stuck in contract
     /// @dev Any account can call this function to withdraw the contract's balance
-    function withdraw() external {
+    function withdraw() public {
         _send(msg.sender, address(this).balance);
     }
 
@@ -58,67 +61,49 @@ contract RelayRouter is Multicaller, Tstorish {
     /// @dev msg.value will persist across all calls in the multicall
     /// @param user The address of the user
     /// @param permit The permit details
-    /// @param targets The addresses of the contracts to call
-    /// @param datas The calldata for each call
-    /// @param values The value to send with each call
-    /// @param refundTo The address to refund any leftover ETH to
+    /// @param calls The calls to perform
     /// @param permitSignature The signature for the permit
     function permitMulticall(
         address user,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        address[] calldata targets,
-        bytes[] calldata datas,
-        uint256[] calldata values,
-        address refundTo,
+        Call3Value[] calldata calls,
         bytes memory permitSignature
-    ) external payable returns (bytes[] memory) {
-        // Revert if array lengths do not match
-        if (targets.length != datas.length || datas.length != values.length) {
-            revert ArrayLengthsMismatch();
-        }
-
+    ) external payable returns (Result[] memory returnData) {
         if (permitSignature.length != 0) {
             // Use permit to transfer tokens from user to router
             _handlePermitBatch(user, permit, permitSignature);
         }
 
         // Perform the multicall and send leftover to refundTo
-        // Perform the multicall and send leftover to refundTo
-        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
-
-        return data;
+        returnData = _aggregate3Value(calls);
     }
 
     /// @notice Call the Multicaller with a delegatecall to set the ERC20Router as the
     ///         sender of the calls to the targets.
     /// @dev    If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
-    ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in refundTo
-    ///         If refundTo is address(this), be sure to transfer tokens out of the router as part of the multicall
-    /// @param targets The addresses of the contracts to call
-    /// @param datas The calldata for each call
-    /// @param values The value to send with each call
-    /// @param refundTo The address to send any leftover ETH and set as recipient of ERC721/ERC1155 mints
+    ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in recipient
+    ///         Be sure to transfer ERC20s or ETH out of the router as part of the multicall
+    /// @param calls The calls to perform
+    /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     function multicall(
-        address[] calldata targets,
-        bytes[] calldata datas,
-        uint256[] calldata values,
-        address refundTo
-    ) external payable returns (bytes[] memory) {
-        // Revert if array lengths do not match
-        if (targets.length != datas.length || datas.length != values.length) {
-            revert ArrayLengthsMismatch();
+        Call3Value[] calldata calls,
+        address nftRecipient
+    ) external payable returns (Result[] memory returnData) {
+        // Set the NFT recipient if provided
+        if (nftRecipient != address(0)) {
+            _setRecipient(nftRecipient);
         }
 
-        // Set the recipient in storage
-        _setRecipient(refundTo);
-
         // Perform the multicall
-        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
+        returnData = _aggregate3Value(calls);
 
         // Clear the recipient in storage
         _clearRecipient();
 
-        return data;
+        // Refund any leftover ETH to the sender
+        if (address(this).balance > 0) {
+            _send(msg.sender, address(this).balance);
+        }
     }
 
     /// @notice Send leftover ERC20 tokens to the refundTo address
@@ -128,7 +113,7 @@ contract RelayRouter is Multicaller, Tstorish {
     function cleanupErc20s(
         address[] calldata tokens,
         address[] calldata recipients
-    ) external {
+    ) public {
         // Revert if array lengths do not match
         if (tokens.length != recipients.length) {
             revert ArrayLengthsMismatch();
@@ -193,12 +178,6 @@ contract RelayRouter is Multicaller, Tstorish {
     /// @dev If the chain does not support tstore, recipient will be saved in storage
     /// @param recipient The address of the recipient
     function _setRecipient(address recipient) internal {
-        // Return early if the recipient is address(0) or address(1), which are special cases for the multicaller
-        // If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
-        if (recipient == address(0) || recipient == address(1)) {
-            return;
-        }
-
         // For safety, revert if the recipient is this contract
         // Tokens should either be minted directly to recipient, or transferred to recipient through the onReceived hooks
         if (recipient == address(this)) {
