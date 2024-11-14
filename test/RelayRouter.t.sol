@@ -107,33 +107,12 @@ contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
         DOMAIN_SEPARATOR = permit2.DOMAIN_SEPARATOR();
     }
 
-    function testReceive() public {
+    function testReceive__revert() public {
         uint256 value = 1 ether;
 
         vm.prank(alice.addr);
         (bool success, ) = address(router).call{value: value}("");
-        assert(success);
-
-        assertEq(address(router).balance, 1 ether);
-    }
-
-    function testWithdraw() public {
-        uint256 value = 1 ether;
-
-        vm.prank(alice.addr);
-        (bool success, ) = address(router).call{value: value}("");
-        assert(success);
-
-        uint256 aliceBalanceBefore = alice.addr.balance;
-
-        assertEq(address(router).balance, 1 ether);
-
-        vm.prank(alice.addr);
-        router.withdraw();
-
-        uint256 aliceBalanceAfter = alice.addr.balance;
-        assertEq(aliceBalanceAfter - aliceBalanceBefore, 1 ether);
-        assertEq(address(router).balance, 0);
+        assert(!success);
     }
 
     function testCorrectWitnessTypehashes() public {
