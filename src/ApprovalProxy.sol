@@ -5,15 +5,9 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IRelayRouter} from "../src/interfaces/IRelayRouter.sol";
+import {RelayStructs} from "../src/utils/RelayStructs.sol";
 
-struct Call3Value {
-    address target;
-    bool allowFailure;
-    uint256 value;
-    bytes callData;
-}
-
-contract ApprovalProxy is Ownable {
+contract ApprovalProxy is Ownable, RelayStructs {
     using SafeERC20 for IERC20;
 
     error ArrayLengthsMismatch();
@@ -48,25 +42,16 @@ contract ApprovalProxy is Ownable {
     /// @dev This contract must be approved to transfer msg.sender's tokens to the ERC20Router
     /// @param tokens An array of token addresses to transfer
     /// @param amounts An array of token amounts to transfer
-    /// @param targets An array of target addresses to pass to the multicall
-    /// @param datas An array of calldata to pass to the multicall
-    /// @param values An array of msg values to pass to the multicall
+    /// @param calls The calls to perform
     /// @param refundTo The address to refund any leftover ETH to
     function transferAndMulticall(
         address[] calldata tokens,
         uint256[] calldata amounts,
-        address[] calldata targets,
-        bytes[] calldata datas,
-        uint256[] calldata values,
+        Call3Value[] calldata calls,
         address refundTo
     ) external payable returns (bytes memory) {
         // Revert if array lengths do not match
         if ((tokens.length != amounts.length)) {
-            revert ArrayLengthsMismatch();
-        }
-
-        // Revert if array lengths do not match (split from above for readability)
-        if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
         }
 
@@ -78,9 +63,7 @@ contract ApprovalProxy is Ownable {
         // Call multicall on the router
         // @dev msg.sender for the calls to targets will be the router
         bytes memory data = IRelayRouter(router).multicall{value: msg.value}(
-            targets,
-            datas,
-            values,
+            calls,
             refundTo
         );
 

@@ -2,22 +2,19 @@
 pragma solidity ^0.8.23;
 
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
+import {RelayStructs} from "../utils/RelayStructs.sol";
 
 interface IRelayRouter {
     function permitMulticall(
         address user,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        address[] calldata targets,
-        bytes[] calldata datas,
-        uint256[] calldata values,
+        RelayStructs.Call3Value[] calldata calls,
         address refundTo,
         bytes memory permitSignature
     ) external payable returns (bytes memory);
 
     function multicall(
-        address[] calldata targets,
-        bytes[] calldata datas,
-        uint256[] calldata values,
+        RelayStructs.Call3Value[] calldata calls,
         address refundTo
     ) external payable returns (bytes memory);
 
