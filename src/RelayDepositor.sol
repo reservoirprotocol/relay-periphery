@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
+import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
+
 /// @title  DepositRouter
 /// @author Reservoir
 /// @notice A public router contract for linking onchain deposits to Relay requestIds.
@@ -11,16 +14,33 @@ contract DepositRouter {
     error NativeTransferFailed();
 
     /// @notice Emit event when deposit is made
-    event Deposit(address indexed to, address indexed token, uint256 value, bytes4 indexed requestId);
+    event Deposit(
+        address indexed to,
+        address indexed token,
+        uint256 value,
+        bytes4 indexed requestId
+    );
 
-    constructor() {}
+    IPermit2 private immutable PERMIT2;
 
-    /// @dev There is no receive() hook since funds must be sent with msg.data
+    bytes32 public constant _EIP_712_DEPOSITOR_WITNESS_TYPEHASH =
+        keccak256("DepositorWitness(bytes4 requestId)");
+    string public constant _DEPOSITOR_WITNESS_TYPESTRING =
+        "DepositorWitness witness)DepositorWitness(bytes4 requestId)TokenPermissions(address token,uint256 amount)";
+
+    constructor(address permit2) {
+        PERMIT2 = IPermit2(permit2);
+    }
+
+    /// @dev This contract doesn't have a `receive` function since funds must be sent with msg.data
     // containing the recipient address and requestId. The requestId should be
     // followed by the recipient address.
     fallback() external payable {
         // Decode the recipient address and requestId from msg.data
-        (bytes4 requestId, address to) = abi.decode(msg.data, (bytes4, address));
+        (bytes4 requestId, address to) = abi.decode(
+            msg.data,
+            (bytes4, address)
+        );
 
         // Transfer the funds to the recipient
         _send(to, msg.value);
@@ -45,12 +65,36 @@ contract DepositRouter {
     /// @param from The address to transfer tokens from
     /// @param amount The amount of tokens to transfer
     /// @param requestId The requestId associated with the order
-    function transferErc20(address token, address from, uint256 amount, bytes4 requestId) external {
-        // Transfer the ERC20 tokens to msg.sender
-        IERC20(token).safeTransferFrom(from, msg.sender, amount);
+    function transferErc20(
+        address from,
+        ISignatureTransfer.PermitTransferFrom memory permit,
+        bytes4 requestId,
+        bytes memory permitSignature
+    ) external {
+        // Create the witness that should be signed over
+        bytes32 witness = keccak256(
+            abi.encode(_EIP_712_DEPOSITOR_WITNESS_TYPEHASH, requestId)
+        );
+
+        // Create the SignatureTransferDetails
+        ISignatureTransfer.SignatureTransferDetails
+            memory signatureTransferDetails = ISignatureTransfer
+                .SignatureTransferDetails({
+                    to: address(this),
+                    requestedAmount: amount
+                });
+
+        PERMIT2.permitWitnessTransferFrom(
+            permit,
+            signatureTransferDetails,
+            from,
+            witness,
+            _DEPOSITOR_WITNESS_TYPESTRING,
+            permitSignature
+        );
 
         // Emit the Deposit event
-        emit Deposit(to, token, amount, requestId);
+        emit Deposit(msg.sender, token, amount, requestId);
     }
 
     /// @notice Internal function for transferring ETH
