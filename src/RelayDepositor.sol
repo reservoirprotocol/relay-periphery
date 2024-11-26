@@ -18,63 +18,52 @@ contract DepositRouter {
         address indexed to,
         address indexed token,
         uint256 value,
-        bytes4 indexed requestId
+        bytes32 commitmentId
     );
 
     IPermit2 private immutable PERMIT2;
 
     bytes32 public constant _EIP_712_DEPOSITOR_WITNESS_TYPEHASH =
-        keccak256("DepositorWitness(bytes4 requestId)");
+        keccak256("DepositorWitness(bytes32 commitmentId)");
     string public constant _DEPOSITOR_WITNESS_TYPESTRING =
-        "DepositorWitness witness)DepositorWitness(bytes4 requestId)TokenPermissions(address token,uint256 amount)";
+        "DepositorWitness witness)DepositorWitness(bytes32 commitmentId)TokenPermissions(address token,uint256 amount)";
 
     constructor(address permit2) {
         PERMIT2 = IPermit2(permit2);
     }
 
-    /// @dev This contract doesn't have a `receive` function since funds must be sent with msg.data
-    // containing the recipient address and requestId. The requestId should be
-    // followed by the recipient address.
-    fallback() external payable {
-        // Decode the recipient address and requestId from msg.data
-        (bytes4 requestId, address to) = abi.decode(
-            msg.data,
-            (bytes4, address)
-        );
-
+    /// @notice Transfer native tokens to `address to` and emit a Deposit event
+    /// @param to The recipient address
+    /// @param commitmentId The commitmentId associated with the order
+    function transferNative(address to, bytes4 commitmentId) external payable {
         // Transfer the funds to the recipient
         _send(to, msg.value);
 
         // Emit the Deposit event
-        emit Deposit(to, address(0), msg.value, requestId);
-    }
-
-    /// @notice Transfer native tokens to `address to` and emit a Deposit event
-    /// @param to The recipient address
-    /// @param requestId The requestId associated with the order
-    function transferNative(address to, bytes4 requestId) external payable {
-        // Transfer the funds to the recipient
-        send(to, msg.value);
-
-        // Emit the Deposit event
-        emit Deposit(to, address(0), msg.value, requestId);
+        emit Deposit(to, address(0), msg.value, commitmentId);
     }
 
     /// @notice Pull ERC20 tokens from `address from` and emit a Deposit event
-    /// @param token The ERC20 token to transfer
     /// @param from The address to transfer tokens from
-    /// @param amount The amount of tokens to transfer
-    /// @param requestId The requestId associated with the order
+    /// @param permit The permit to consume
+    /// @param commitmentId The commitmentId associated with the order
+    /// @param permitSignature The signature for the permit
     function transferErc20(
         address from,
         ISignatureTransfer.PermitTransferFrom memory permit,
-        bytes4 requestId,
+        bytes32 commitmentId,
         bytes memory permitSignature
     ) external {
         // Create the witness that should be signed over
         bytes32 witness = keccak256(
-            abi.encode(_EIP_712_DEPOSITOR_WITNESS_TYPEHASH, requestId)
+            abi.encode(_EIP_712_DEPOSITOR_WITNESS_TYPEHASH, commitmentId)
         );
+
+        // Get the token being transferred from the permit
+        address token = permit.permitted.token;
+
+        // Get the amount being transferred from the permit
+        uint256 amount = permit.permitted.amount;
 
         // Create the SignatureTransferDetails
         ISignatureTransfer.SignatureTransferDetails
@@ -94,7 +83,7 @@ contract DepositRouter {
         );
 
         // Emit the Deposit event
-        emit Deposit(msg.sender, token, amount, requestId);
+        emit Deposit(msg.sender, token, amount, commitmentId);
     }
 
     /// @notice Internal function for transferring ETH
