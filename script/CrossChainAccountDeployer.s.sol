@@ -12,7 +12,7 @@ contract CrossChainAccountDeployer is Script {
         address messenger = 0x4200000000000000000000000000000000000007;
         address l1Owner = 0x1a9C8182C09F50C8318d769245beA52c32BE35BC;
 
-        // Deploy Seaport 1.5
+        // Deploy CrossChainAccount
         CrossChainAccount cca = new CrossChainAccount{salt: salt}(
             Messenger(messenger), l1Owner
         );
