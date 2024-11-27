@@ -35,7 +35,7 @@ contract DepositRouter {
     /// @notice Transfer native tokens to `address to` and emit a Deposit event
     /// @param to The recipient address
     /// @param commitmentId The commitmentId associated with the order
-    function transferNative(address to, bytes4 commitmentId) external payable {
+    function transferNative(address to, bytes32 commitmentId) external payable {
         // Transfer the funds to the recipient
         _send(to, msg.value);
 
