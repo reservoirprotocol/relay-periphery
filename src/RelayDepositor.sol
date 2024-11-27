@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title  DepositRouter
 /// @author Reservoir
@@ -10,6 +11,8 @@ import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfe
 ///         Verifiers can listen to emitted Deposit events to link a deposit to its
 ///         corresponding order.
 contract DepositRouter {
+    using SafeERC20 for IERC20;
+
     /// @notice Revert if native transfer failed
     error NativeTransferFailed();
 
@@ -48,7 +51,7 @@ contract DepositRouter {
     /// @param permit The permit to consume
     /// @param commitmentId The commitmentId associated with the order
     /// @param permitSignature The signature for the permit
-    function transferErc20(
+    function permitTransferErc20(
         address from,
         ISignatureTransfer.PermitTransferFrom memory permit,
         bytes32 commitmentId,
@@ -81,6 +84,19 @@ contract DepositRouter {
             _DEPOSITOR_WITNESS_TYPESTRING,
             permitSignature
         );
+
+        // Emit the Deposit event
+        emit Deposit(msg.sender, token, amount, commitmentId);
+    }
+
+    function approvalTransferErc20(
+        address from,
+        address token,
+        uint256 amount,
+        bytes32 commitmentId
+    ) external {
+        // Transfer the ERC20 tokens to msg.sender
+        IERC20(token).safeTransfer(from, msg.sender, amount);
 
         // Emit the Deposit event
         emit Deposit(msg.sender, token, amount, commitmentId);
