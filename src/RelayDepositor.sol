@@ -5,12 +5,12 @@ import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/// @title  DepositRouter
+/// @title  RelayDepositor
 /// @author Reservoir
-/// @notice A public router contract for linking onchain deposits to Relay requestIds.
+/// @notice A public router contract for linking onchain deposits to Relay commitmentIds.
 ///         Verifiers can listen to emitted Deposit events to link a deposit to its
-///         corresponding order.
-contract DepositRouter {
+///         corresponding commitment.
+contract RelayDepositor {
     using SafeERC20 for IERC20;
 
     /// @notice Revert if native transfer failed
