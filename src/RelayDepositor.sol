@@ -96,7 +96,7 @@ contract DepositRouter {
         bytes32 commitmentId
     ) external {
         // Transfer the ERC20 tokens to msg.sender
-        IERC20(token).safeTransfer(from, msg.sender, amount);
+        IERC20(token).safeTransferFrom(from, msg.sender, amount);
 
         // Emit the Deposit event
         emit Deposit(msg.sender, token, amount, commitmentId);
