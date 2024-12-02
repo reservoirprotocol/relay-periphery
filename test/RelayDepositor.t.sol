@@ -32,11 +32,17 @@ contract RelayDepositorTest is Test, BaseRelayTest {
         bytes32 commitmentId
     );
 
+    event Witness(bytes32 witness);
+
+    event DomainSeparator(bytes32 domainSeparator);
+
+    event KeccakDepositorWitnessTypehash(bytes32 witness);
+
     Permit2 permit2 = Permit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
     RelayDepositor depositor;
 
     bytes32 public DOMAIN_SEPARATOR;
-    bytes32 public constant _EIP_712_DEPOSITOR_WITNESS_TYPE_HASH =
+    bytes32 public constant _EIP_712_DEPOSITOR_WITNESS_TYPEHASH =
         keccak256("DepositorWitness(bytes32 commitmentId)");
     bytes32 public constant _FULL_DEPOSITOR_WITNESS_TYPEHASH =
         keccak256(
@@ -92,13 +98,13 @@ contract RelayDepositorTest is Test, BaseRelayTest {
                     token: address(erc20_1),
                     amount: 1 ether
                 }),
-                nonce: 1,
+                nonce: 0,
                 deadline: block.timestamp + 100
             });
 
         // Create the witness that should be signed over
         bytes32 witness = keccak256(
-            abi.encode(_EIP_712_DEPOSITOR_WITNESS_TYPE_HASH, commitmentId)
+            abi.encode(_EIP_712_DEPOSITOR_WITNESS_TYPEHASH, commitmentId)
         );
 
         // Get the permit signature
@@ -111,6 +117,8 @@ contract RelayDepositorTest is Test, BaseRelayTest {
             DOMAIN_SEPARATOR
         );
 
+        uint256 aliceBalanceBefore = erc20_1.balanceOf(alice.addr);
+
         vm.expectEmit();
         emit Deposit(relayer.addr, address(erc20_1), 1 ether, commitmentId);
         vm.prank(relayer.addr);
@@ -120,5 +128,10 @@ contract RelayDepositorTest is Test, BaseRelayTest {
             commitmentId,
             permitSig
         );
+
+        uint256 aliceBalanceAfter = erc20_1.balanceOf(alice.addr);
+
+        assertEq(erc20_1.balanceOf(relayer.addr), 1 ether);
+        assertEq(aliceBalanceBefore - aliceBalanceAfter, 1 ether);
     }
 }

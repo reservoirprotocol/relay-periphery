@@ -122,7 +122,7 @@ contract BaseRelayTest is Test {
                 keccak256(
                     abi.encode(
                         typehash,
-                        keccak256(abi.encodePacked(tokenPermissions)),
+                        tokenPermissions,
                         spender,
                         permit.nonce,
                         permit.deadline,
