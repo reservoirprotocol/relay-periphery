@@ -43,13 +43,13 @@ contract RelayDepositorTest is Test, BaseRelayTest {
 
     bytes32 public DOMAIN_SEPARATOR;
     bytes32 public constant _EIP_712_DEPOSITOR_WITNESS_TYPEHASH =
-        keccak256("DepositorWitness(bytes32 commitmentId)");
+        keccak256("DepositorWitness(address to,bytes32 commitmentId)");
     bytes32 public constant _FULL_DEPOSITOR_WITNESS_TYPEHASH =
         keccak256(
-            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,DepositorWitness witness)DepositorWitness(bytes32 commitmentId)TokenPermissions(address token,uint256 amount)"
+            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,DepositorWitness witness)DepositorWitness(address to,bytes32 commitmentId)TokenPermissions(address token,uint256 amount)"
         );
     string public constant _DEPOSITOR_WITNESS_TYPE_STRING =
-        "DepositorWitness witness)DepositorWitness(bytes32 commitmentId)TokenPermissions(address token,uint256 amount)";
+        "DepositorWitness witness)DepositorWitness(address to,bytes32 commitmentId)TokenPermissions(address token,uint256 amount)";
     bytes32 public commitmentId = keccak256(abi.encodePacked("commitmentId"));
 
     function setUp() public override {
@@ -104,7 +104,11 @@ contract RelayDepositorTest is Test, BaseRelayTest {
 
         // Create the witness that should be signed over
         bytes32 witness = keccak256(
-            abi.encode(_EIP_712_DEPOSITOR_WITNESS_TYPEHASH, commitmentId)
+            abi.encode(
+                _EIP_712_DEPOSITOR_WITNESS_TYPEHASH,
+                relayer.addr,
+                commitmentId
+            )
         );
 
         // Get the permit signature

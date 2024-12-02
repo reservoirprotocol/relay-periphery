@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title  RelayDepositor
@@ -27,9 +28,9 @@ contract RelayDepositor {
     IPermit2 private immutable PERMIT2;
 
     bytes32 public constant _EIP_712_DEPOSITOR_WITNESS_TYPEHASH =
-        keccak256("DepositorWitness(bytes32 commitmentId)");
+        keccak256("DepositorWitness(address to,bytes32 commitmentId)");
     string public constant _DEPOSITOR_WITNESS_TYPESTRING =
-        "DepositorWitness witness)DepositorWitness(bytes32 commitmentId)TokenPermissions(address token,uint256 amount)";
+        "DepositorWitness witness)DepositorWitness(address to,bytes32 commitmentId)TokenPermissions(address token,uint256 amount)";
 
     constructor(address permit2) {
         PERMIT2 = IPermit2(permit2);
@@ -59,7 +60,11 @@ contract RelayDepositor {
     ) external {
         // Create the witness that should be signed over
         bytes32 witness = keccak256(
-            abi.encode(_EIP_712_DEPOSITOR_WITNESS_TYPEHASH, commitmentId)
+            abi.encode(
+                _EIP_712_DEPOSITOR_WITNESS_TYPEHASH,
+                msg.sender,
+                commitmentId
+            )
         );
 
         // Get the token being transferred from the permit
@@ -72,7 +77,7 @@ contract RelayDepositor {
         ISignatureTransfer.SignatureTransferDetails
             memory signatureTransferDetails = ISignatureTransfer
                 .SignatureTransferDetails({
-                    to: address(this),
+                    to: msg.sender,
                     requestedAmount: amount
                 });
 
