@@ -1,33 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {Ownable} from "solady/src/auth/Ownable.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {IRelayEscrowManager} from "./interfaces/IRelayEscrowManager.sol";
-import {Balances, OrderStatus, TokenTransfer, Verdict} from "./utils/RelayStructs.sol";
+import {ClaimStatus} from "./utils/RelayStructs.sol";
 
 /// @title RelayEscrow v1
 /// @notice RelayEscrowManager holds Relayer collateral and allows Users
 ///         to initiate claims against unfilled or incorrectly filled orders.
 /// @author Reservoir0x
-contract EscrowManager is IEscrowManager {
+contract EscrowManager is IRelayEscrowManager, Ownable {
     using SignatureCheckerLib for address;
 
-    event OrderInitiated(address user, address relayer, bytes32 orderHash);
-    event OrderSettled(bytes32 orderHash, Verdict verdict);
-    event OrderCancelled(address user, address relayer, bytes32 orderHash);
+    event ClaimInitiated(address user, address relayer, bytes32 claimId);
+    event ClaimSettled(bytes32 claimId, ClaimStatus claimStatus);
+    event ClaimCancelled(bytes32 claimId);
 
-    error InsufficientFunds(uint256 amountAvailable, uint256 amountRequested);
-    error OrderAlreadyInitiated(bytes32 orderHash);
-    error OrderAlreadySettled(bytes32 orderHash);
-    error OrderNotInitiated(bytes32 orderHash);
-    error OrderExpired(uint256 blockTimestamp, uint256 expiration);
     error InvalidSignature(address expectedSigner);
-    error InvalidCommitData(bytes32 commitment, bytes commitData, uint256 salt);
+    error InsufficientFunds(uint256 amountAvailable, uint256 amountRequested);
+    error ClaimAlreadyInitiated(bytes32 claimId);
+    error ClaimAlreadySettled(bytes32 claimId);
+    error ClaimNotInitiated(bytes32 orderHash);
+    error ClaimWindowExpired(uint256 blockTimestamp, uint256 expiration);
     error EtherReturnTransferFailed(
         address recipient,
         uint256 amount,
         bytes data
     );
+
+    uint96 public claimWindow;
+    uint96 public responseWindow;
 
     /// @notice Mapping of relayer balances
     mapping(address => uint256) public balances;
@@ -35,7 +38,9 @@ contract EscrowManager is IEscrowManager {
     /// @notice Mapping of order hashes to claim statuses
     mapping(bytes32 => ClaimStatus) public claimStatus;
 
-    constructor() {}
+    constructor() {
+        _initializeOwner(msg.sender);
+    }
 
     receive() external payable {}
 
@@ -72,18 +77,21 @@ contract EscrowManager is IEscrowManager {
     /// @param order The order to initiate
     /// @param relayerSig The relayer's signature
     /// @return orderHash The hash of the initiated order
-    function initiateOrder(
-        Order memory order,
+    function initiateClaim(
+        Commitment commitment,
         bytes memory relayerSig
     ) public returns (bytes32 orderHash) {
-        // Generate the order hash
-        orderHash = keccak256(
-            abi.encodePacked(order.intentCommit, order.primaryCommit)
+        // Generate the commitment hash
+        bytes32 commitmentHash = _getCommitmentHash(commitment);
+
+        // Validate the relayer signature
+        _validateRelayerSignature(
+            commitment.relayer,
+            commitmentHash,
+            relayerSig
         );
 
-        // Validate the relayer's signature
-        if (!order.relayer.isValidSignatureNow(orderHash, relayerSig))
-            revert InvalidSignature(order.relayer);
+        // Validate that the claim has not already been initiated
 
         // Initiate the order
         _initiateOrder(order, orderHash);
@@ -153,6 +161,16 @@ contract EscrowManager is IEscrowManager {
 
         // Emit an OrderCancelled event
         emit OrderCancelled(order.user, order.relayer, orderHash);
+    }
+
+    function _validateRelayerSignature(
+        address relayer,
+        bytes32 commitmentHash,
+        bytes relayerSig
+    ) internal view {
+        // Validate the relayer's signature
+        if (!relayer.isValidSignatureNow(commitmentHash, relayerSig))
+            revert InvalidSignature(relayer);
     }
 
     /// @notice Internal function to settle an order's balances by updating
