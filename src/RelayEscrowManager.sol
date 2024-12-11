@@ -18,6 +18,11 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     event ClaimCancelled(bytes32 claimId);
 
     error InvalidSignature(address expectedSigner);
+    error InvalidClaimStatus(
+        bytes32 claimId,
+        ClaimStatus expectedStatus,
+        ClaimStatus actualStatus
+    );
     error InsufficientFunds(uint256 amountAvailable, uint256 amountRequested);
     error ClaimAlreadyInitiated(bytes32 claimId);
     error ClaimAlreadySettled(bytes32 claimId);
@@ -79,6 +84,7 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     /// @return orderHash The hash of the initiated order
     function initiateClaim(
         Commitment commitment,
+        bytes32 depositTxHash,
         bytes memory relayerSig
     ) public returns (bytes32 orderHash) {
         // Generate the commitment hash
@@ -92,9 +98,10 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         );
 
         // Validate that the claim has not already been initiated
+        _validateClaimStatus(commitment.commitmentId, ClaimStatus.NotInitiated);
 
-        // Initiate the order
-        _initiateOrder(order, orderHash);
+        // Validate that the claim window has not expired
+        _validateClaimWindow(commitment.quoteExpiration);
 
         // Emit an OrderInitiated event
         emit OrderInitiated(order.user, order.relayer, orderHash);
@@ -171,6 +178,29 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         // Validate the relayer's signature
         if (!relayer.isValidSignatureNow(commitmentHash, relayerSig))
             revert InvalidSignature(relayer);
+    }
+
+    function _validateClaimStatus(
+        bytes32 commitmentId,
+        ClaimStatus expectedStatus
+    ) internal view {
+        // Validate the claim status
+        if (claimStatus[commitmentId] != expectedStatus)
+            revert InvalidClaimStatus(
+                commitmentId,
+                expectedStatus,
+                claimStatus[commitmentId]
+            );
+    }
+
+    function _validateClaimWindow(uint256 quoteExpiration) internal view {
+        // Calculate the claim window expiration
+        uint256 claimWindowExpiration = quoteExpiration + claimWindow;
+
+        // Validate that the claim window has not expired
+        if (block.timestamp > claimWindowExpiration) {
+            revert ClaimWindowExpired(block.timestamp, claimWindowExpiration);
+        }
     }
 
     /// @notice Internal function to settle an order's balances by updating
