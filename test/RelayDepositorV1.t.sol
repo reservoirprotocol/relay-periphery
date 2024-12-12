@@ -6,7 +6,7 @@ import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfe
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {BaseRelayTest} from "./base/BaseRelayTest.sol";
-import {RelayDepositor} from "../src/RelayDepositor.sol";
+import {RelayDepositorV1} from "../src/RelayDepositorV1.sol";
 
 contract RelayDepositorTest is Test, BaseRelayTest {
     using SafeERC20 for IERC20;
@@ -29,7 +29,7 @@ contract RelayDepositorTest is Test, BaseRelayTest {
         address indexed to,
         address indexed token,
         uint256 value,
-        bytes32 commitmentId
+        bytes32 id
     );
 
     event Witness(bytes32 witness);
@@ -39,23 +39,23 @@ contract RelayDepositorTest is Test, BaseRelayTest {
     event KeccakDepositorWitnessTypehash(bytes32 witness);
 
     Permit2 permit2 = Permit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
-    RelayDepositor depositor;
+    RelayDepositorV1 depositor;
 
     bytes32 public DOMAIN_SEPARATOR;
     bytes32 public constant _EIP_712_DEPOSITOR_WITNESS_TYPEHASH =
-        keccak256("DepositorWitness(address to,bytes32 commitmentId)");
+        keccak256("DepositorWitness(address to,bytes32 id)");
     bytes32 public constant _FULL_DEPOSITOR_WITNESS_TYPEHASH =
         keccak256(
-            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,DepositorWitness witness)DepositorWitness(address to,bytes32 commitmentId)TokenPermissions(address token,uint256 amount)"
+            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,DepositorWitness witness)DepositorWitness(address to,bytes32 id)TokenPermissions(address token,uint256 amount)"
         );
     string public constant _DEPOSITOR_WITNESS_TYPE_STRING =
-        "DepositorWitness witness)DepositorWitness(address to,bytes32 commitmentId)TokenPermissions(address token,uint256 amount)";
-    bytes32 public commitmentId = keccak256(abi.encodePacked("commitmentId"));
+        "DepositorWitness witness)DepositorWitness(address to,bytes32 id)TokenPermissions(address token,uint256 amount)";
+    bytes32 public id = keccak256(abi.encodePacked("id"));
 
     function setUp() public override {
         super.setUp();
 
-        depositor = new RelayDepositor(address(permit2));
+        depositor = new RelayDepositorV1(address(permit2));
 
         // Alice approves permit2 on the ERC20
         erc20_1.mint(alice.addr, 1 ether);
@@ -104,11 +104,7 @@ contract RelayDepositorTest is Test, BaseRelayTest {
 
         // Create the witness that should be signed over
         bytes32 witness = keccak256(
-            abi.encode(
-                _EIP_712_DEPOSITOR_WITNESS_TYPEHASH,
-                relayer.addr,
-                commitmentId
-            )
+            abi.encode(_EIP_712_DEPOSITOR_WITNESS_TYPEHASH, relayer.addr, id)
         );
 
         // Get the permit signature
@@ -124,12 +120,13 @@ contract RelayDepositorTest is Test, BaseRelayTest {
         uint256 aliceBalanceBefore = erc20_1.balanceOf(alice.addr);
 
         vm.expectEmit();
-        emit Deposit(relayer.addr, address(erc20_1), 1 ether, commitmentId);
+        emit Deposit(relayer.addr, address(erc20_1), 1 ether, id);
         vm.prank(relayer.addr);
         depositor.permitTransferErc20(
             alice.addr,
+            relayer.addr,
             permit,
-            commitmentId,
+            id,
             permitSig
         );
 
