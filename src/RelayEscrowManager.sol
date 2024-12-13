@@ -5,6 +5,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {IRelayEscrowManager} from "./interfaces/IRelayEscrowManager.sol";
 import {ClaimContext, ClaimStatus} from "./utils/RelayStructs.sol";
+import {GaslessCrossChainOrder, ResolvedCrossChainOrder, RelayInput, RelayOrderData, RelayOutput} from "./utils/ERC7683Structs.sol";
 
 /// @title RelayEscrow v1
 /// @notice RelayEscrowManager holds Relayer collateral and allows Users
@@ -14,6 +15,11 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     using SignatureCheckerLib for address;
 
     event ClaimInitiated(address user, address relayer, bytes32 commitmentId);
+    event ClaimResponseReceived(
+        bytes32 commitmentId,
+        bytes32 fillTxHash,
+        ClaimStatus newClaimStatus
+    );
     event ClaimSettled(bytes32 commitmentId, ClaimStatus claimStatus);
     event ClaimCancelled(bytes32 commitmentId);
 
@@ -24,9 +30,6 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         ClaimStatus actualStatus
     );
     error InvalidDisputeBond(uint256 expectedDisputeBond, uint256 msgValue);
-    error ClaimAlreadyInitiated(bytes32 commitmentId);
-    error ClaimAlreadySettled(bytes32 commitmentId);
-    error ClaimNotInitiated(bytes32 orderHash);
     error ClaimWindowExpired(uint256 blockTimestamp, uint256 expiration);
     error EtherReturnTransferFailed(
         address recipient,
@@ -34,23 +37,58 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         bytes data
     );
 
-    uint96 public claimWindow;
-    uint96 public responseWindow;
-    uint96 public arbitrationWindow;
+    uint24 public claimWindow;
+    uint24 public responseWindow;
+    uint24 public arbitrationWindow;
+    uint24 public withdrawalLockDuration;
 
     uint256 public disputeBond;
 
-    /// @notice Mapping of relayer balances
-    mapping(address => uint256) public balances;
+    /// @notice Mapping from address to EscrowBalance:
+    ///         - timelock: The amount of ether locked in escrow
+    mapping(address => EscrowBalance) public escrowBalances;
 
     /// @notice Mapping of commitmentId to claim context
     mapping(bytes32 => ClaimStatus) public claimContext;
 
-    constructor() {
+    constructor(
+        uint24 _claimWindow,
+        uint24 _responseWindow,
+        uint24 _arbitrationWindow,
+        uint24 _withdrawalLockDuration,
+        uint256 _disputeBond
+    ) {
         _initializeOwner(msg.sender);
+        claimWindow = _claimWindow;
+        responseWindow = _responseWindow;
+        arbitrationWindow = _arbitrationWindow;
+        withdrawalLockDuration = _withdrawalLockDuration;
+        disputeBond = _disputeBond;
     }
 
     receive() external payable {}
+
+    function setClaimWindow(uint24 _claimWindow) public onlyOwner {
+        claimWindow = _claimWindow;
+    }
+
+    function setResponseWindow(uint24 _responseWindow) public onlyOwner {
+        responseWindow = _responseWindow;
+    }
+
+    function setArbitrationWindow(uint24 _arbitrationWindow) public onlyOwner {
+        arbitrationWindow = _arbitrationWindow;
+    }
+
+    function setDisputeBond(uint256 _disputeBond) public onlyOwner {
+        disputeBond = _disputeBond;
+    }
+
+    function setWithdrawalLockDuration(
+        uint24 _withdrawalLockDuration
+    ) public onlyOwner {
+        withdrawalLockDuration = _withdrawalLockDuration;
+    }
 
     /// @notice Deposit collateral on behalf of a relayer
     function depositEscrow(address relayer) public payable {
@@ -84,15 +122,37 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         }
     }
 
+    function initiateWithdrawal() external {
+        // Get the user's total balance
+        uint256 balance = escrowBalances[msg.sender].totalBalance;
+
+        // Revert if the user has no withdrawable balance
+        if (balance == 0) {
+            revert InsufficientBalance();
+        }
+
+        // Revert if the user has already initiated a withdrawal
+        if (escrowBalances[msg.sender].timelock > 0) {
+            revert WithdrawalAlreadyInitiated();
+        }
+
+        // Set the timelock
+        escrowBalances[msg.sender].timelock = block.timestamp + lockDuration;
+    }
+
     /// @notice Initiate a new order
     /// @param order The order to initiate
     /// @param relayerSig The relayer's signature
     /// @return orderHash The hash of the initiated order
     function initiateClaim(
-        Commitment commitment,
+        GaslessCrossChainOrder order,
         bytes32 depositTxHash,
         bytes memory relayerSig
-    ) public payable returns (bytes32 orderHash) {
+    )
+        public
+        payable
+        returns (ResolvedCrossChainOrder resolvedOrder, bytes32 commitmentId)
+    {
         // Generate the commitment hash
         bytes32 commitmentHash = _getCommitmentHash(commitment);
 
@@ -109,15 +169,58 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         // Validate that the claim window has not expired
         _validateClaimWindow(commitment.quoteExpiration);
 
-        // Validate the bond amount
-        _validateBond();
+        // Validate the bond amount and update the user's balance
+        _validateDisputeBond();
+
+        // Resolve the order to a ResolvedCrossChainOrder
+        resolvedOrder = _resolveOrder(order);
 
         // Set the claim status to initiated
         _initiateClaim(commitment.commitmentId);
 
         // Emit a ClaimInitated event
-        emit OrderInitiated(order.user, order.relayer, orderHash);
+        emit ClaimInitiated(
+            commitment.user,
+            commitment.relayer,
+            commitment.commitmentId
+        );
+
+        return commitment.commitmentId;
     }
+
+    function respondToClaim__relayer(
+        bytes32 commitmentId,
+        bytes32 fillTxHash,
+        Response response
+    ) public returns (bytes32 commitmentId) {
+        // Validate the claim status
+        _validateClaimStatus(
+            commitmentId,
+            ClaimStatus.Initiated__awaitingRelayerResponse
+        );
+
+        // Validate that the response window has not expired
+        _validateRelayerResponseDeadline(commitmentId);
+
+        // Set the claim status based on the Relayer's response
+        _setClaimStatus(Response);
+
+        // Set the claim status to settled
+        claimContext[commitmentId] = ClaimStatus
+            .Initiated__awaitingUserResponse;
+
+        // Emit a ClaimResponseReceived event
+        emit ClaimResponseReceived(
+            commitmentId,
+            fillTxHash,
+            ClaimStatus.Initiated__awaitingUserResponse
+        );
+    }
+
+    function respondToClaim__user(
+        bytes32 commitmentId,
+        Response response
+    ) public {}
 
     // /// @notice Allows an order to be cancelled.
     // ///         Validator can cancel the order if they determine the User
@@ -146,9 +249,35 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     //     emit OrderCancelled(order.user, order.relayer, orderHash);
     // }
 
+    function _setRelayerResponse(Response response) internal view {
+        if (response != )
+    }
+
+    function _resolveOrder(
+        GaslessCrossChainOrder order
+    ) internal view returns (ResolvedCrossChainOrder resolvedOrder) {
+        // Decode the RelayOrderData from orderData
+        RelayOrderData orderData = abi.decode(
+            order.orderData,
+            (RelayOrderData)
+        );
+
+        // Create the ResolvedCrossChainOrder
+        resolvedOrder = ResolvedCrossChainOrder({
+            user: order.user,
+            originChainId: order.originChainId,
+            openDeadline: order.openDeadline,
+            fillDeadline: order.fillDeadline,
+            orderId: orderData.commitmentId,
+            maxSpent: orderData.inputs, // TODO: come back to maxSpent, minReceived, fillInstructions
+            minReceived: orderData.output,
+            fillInstructions: orderData.fillInstructions
+        });
+    }
+
     function _initiateClaim(bytes32 commitmentId) internal {
         // Set the claim status to initiated
-        claimStatus[commitmentId] = ClaimStatus
+        claimContext[commitmentId] = ClaimStatus
             .Initiated__awaitingRelayerResponse;
 
         // Set the response deadline
@@ -168,6 +297,12 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         if (msg.value != disputeBond) {
             revert InvalidDisputeBond(disputeBond, msg.value);
         }
+
+        // Update the user's locked balance
+        escrowBalances[msg.sender].lockedBalance += msg.value;
+
+        // Update the user's total balance
+        escrowBalances[msg.sender].totalBalance += msg.value;
     }
 
     function _validateRelayerSignature(
@@ -185,11 +320,11 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         ClaimStatus expectedStatus
     ) internal view {
         // Validate the claim status
-        if (claimStatus[commitmentId] != expectedStatus)
+        if (claimContext[commitmentId] != expectedStatus)
             revert InvalidClaimStatus(
                 commitmentId,
                 expectedStatus,
-                claimStatus[commitmentId]
+                claimContext[commitmentId]
             );
     }
 
@@ -200,6 +335,20 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         // Validate that the claim window has not expired
         if (block.timestamp > claimWindowExpiration) {
             revert ClaimWindowExpired(block.timestamp, claimWindowExpiration);
+        }
+    }
+
+    function _validateRelayerResponseDeadline(
+        bytes32 commitmentId
+    ) internal view {
+        // Validate that the response window has not expired
+        if (
+            block.timestamp > claimContext[commitmentId].relayerResponseDeadline
+        ) {
+            revert ClaimWindowExpired(
+                block.timestamp,
+                claimContext[commitmentId].responseDeadline
+            );
         }
     }
 
