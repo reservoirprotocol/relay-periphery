@@ -1,36 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-struct Call3Value {
-    address target;
-    bool allowFailure;
-    uint256 value;
-    bytes callData;
+enum ClaimStatus {
+    NotInitiated,
+    Initiated__awaitingRelayerResponse,
+    Initiated__awaitingUserResponse,
+    EscalatedToArbitration,
+    Cancelled,
+    Settled__forRelayer,
+    Settled__forUser
 }
 
-struct Input {
-    address to;
-    address token;
-    uint256 chainId;
-    uint256 value;
-    uint256 weight;
-    Refund refund;
+enum Response {
+    User__settle,
+    User__dispute,
+    Relayer__settle,
+    Relayer__dispute
 }
 
-struct Output {
-    uint256 chainId;
-    address to;
-    address token;
-    uint256 minimumAmount;
-    uint256 expectedAmount;
-    Call3Value[] calls;
+struct Balances {
+    uint256 outstandingBalance;
+    uint256 totalBalance;
 }
 
-struct Refund {
-    uint256 chainId;
-    address to;
-    address token;
-    uint256 minimumAmount;
+struct ClaimContext {
+    ClaimStatus status;
+    uint256 relayerResponseDeadline;
+    uint256 userResponseDeadline;
+    uint256 arbitrationDeadline;
 }
 
 /// @dev The struct representing a commitment
@@ -44,6 +41,7 @@ struct Refund {
 ///               to be executed on the destination chain
 struct Commitment {
     bytes32 commitmentId;
+    address user;
     address relayer;
     uint256 bond;
     uint256 quoteExpiration;
@@ -52,12 +50,8 @@ struct Commitment {
     Output output;
 }
 
-enum ClaimStatus {
-    NotInitiated,
-    Initiated__awaitingRelayerResponse,
-    Initiated__awaitingUserResponse,
-    EscalatedToArbitration,
-    Cancelled,
-    Settled__forRelayer,
-    Settled__forUser
+struct EscrowBalance {
+    uint256 timelock;
+    uint256 lockedBalance;
+    uint256 totalBalance;
 }
