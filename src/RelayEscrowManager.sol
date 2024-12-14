@@ -5,7 +5,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {IRelayEscrowManager} from "./interfaces/IRelayEscrowManager.sol";
 import {ClaimContext, ClaimStatus} from "./utils/RelayStructs.sol";
-import {GaslessCrossChainOrder, ResolvedCrossChainOrder, RelayInput, RelayOrderData, RelayOutput} from "./utils/ERC7683Structs.sol";
+import {GaslessCrossChainOrder, ResolvedCrossChainOrder, RelayInput, RelayOrderData, RelayOutput, WithdrawalRequest} from "./utils/ERC7683Structs.sol";
 
 /// @title RelayEscrow v1
 /// @notice RelayEscrowManager holds Relayer collateral and allows Users
@@ -13,6 +13,10 @@ import {GaslessCrossChainOrder, ResolvedCrossChainOrder, RelayInput, RelayOrderD
 /// @author Reservoir0x
 contract EscrowManager is IRelayEscrowManager, Ownable {
     using SignatureCheckerLib for address;
+
+    /*//////////////////////////////////////////////////////////////
+                                 EVENTS
+    //////////////////////////////////////////////////////////////*/
 
     event ClaimInitiated(address user, address relayer, bytes32 commitmentId);
     event ClaimResponseReceived(
@@ -23,6 +27,10 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     event ClaimSettled(bytes32 commitmentId, ClaimStatus claimStatus);
     event ClaimCancelled(bytes32 commitmentId);
 
+    /*//////////////////////////////////////////////////////////////
+                                 ERRORS
+    //////////////////////////////////////////////////////////////*/
+
     error InvalidSignature(address expectedSigner);
     error InvalidClaimStatus(
         bytes32 commitmentId,
@@ -30,12 +38,17 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         ClaimStatus actualStatus
     );
     error InvalidDisputeBond(uint256 expectedDisputeBond, uint256 msgValue);
+    error InvalidResponse(Response response);
     error ClaimWindowExpired(uint256 blockTimestamp, uint256 expiration);
     error EtherReturnTransferFailed(
         address recipient,
         uint256 amount,
         bytes data
     );
+
+    /*//////////////////////////////////////////////////////////////
+                            STATE VARIABLES
+    //////////////////////////////////////////////////////////////*/
 
     uint24 public claimWindow;
     uint24 public responseWindow;
@@ -45,8 +58,10 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     uint256 public disputeBond;
 
     /// @notice Mapping from address to EscrowBalance:
-    ///         - timelock: The amount of ether locked in escrow
     mapping(address => EscrowBalance) public escrowBalances;
+
+    /// @notice Mapping from address to WithdrawalRequest:
+    mapping(address => WithdrawalRequest) public withdrawalRequests;
 
     /// @notice Mapping of commitmentId to claim context
     mapping(bytes32 => ClaimStatus) public claimContext;
@@ -99,6 +114,9 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     /// @notice Withdraw collateral from the escrow contract
     /// @param amount The amount to withdraw
     function withdrawEscrow(uint256 amount) public {
+        // Validate
+        _validateWithdrawalRequest(amount);
+
         uint256 withdrawableBalance = balances[msg.sender].totalBalance -
             balances[msg.sender].outstandingBalance;
 
@@ -122,12 +140,15 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         }
     }
 
-    function initiateWithdrawal() external {
+    function initiateWithdrawal(uint256 amount) external {
         // Get the user's total balance
-        uint256 balance = escrowBalances[msg.sender].totalBalance;
+        uint256 totalBalance = escrowBalances[msg.sender].totalBalance;
+
+        uint256 withdrawableBalance = totalBalance -
+            escrowBalances[msg.sender].lockedBalance;
 
         // Revert if the user has no withdrawable balance
-        if (balance == 0) {
+        if (totalBalance == 0) {
             revert InsufficientBalance();
         }
 
@@ -203,11 +224,7 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         _validateRelayerResponseDeadline(commitmentId);
 
         // Set the claim status based on the Relayer's response
-        _setClaimStatus(Response);
-
-        // Set the claim status to settled
-        claimContext[commitmentId] = ClaimStatus
-            .Initiated__awaitingUserResponse;
+        _validateRelayerResponse(Response);
 
         // Emit a ClaimResponseReceived event
         emit ClaimResponseReceived(
@@ -222,35 +239,37 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         Response response
     ) public {}
 
-    // /// @notice Allows an order to be cancelled.
-    // ///         Validator can cancel the order if they determine the User
-    // ///         has not transferred to the Relayer by the order expiration.
-    // function cancelOrder(bytes32 orderHash, bytes memory validatorSig) public {
-    //     Order memory order = orders[orderHash];
+    function _validateWithdrawalRequest(uint256 amount) internal view {
+        // Revert if timelock has not expired yet
+        if (
+            withdrawalRequests[msg.sender].timelockExpiration > block.timestamp
+        ) {
+            revert TooSoon();
+        }
 
-    //     // Check that the order status is initiated
-    //     if (orderStatus[orderHash] != OrderStatus.Initiated)
-    //         revert OrderNotInitiated(orderHash);
+        // Validate that the withdrawal amount is less than the user's total balance
+        if (amount > escrowBalances[msg.sender].totalBalance) {
+            revert InsufficientBalance();
+        }
+    }
 
-    //     // Validate the signature
-    //     if (!order.validator.isValidSignatureNow(orderHash, validatorSig))
-    //         revert InvalidSignature(order.validator);
+    function _validateRelayerResponse(
+        Response response,
+        bytes32 commitmentId
+    ) internal view {
+        // Revert if response is not a Relayer response
+        if (
+            response != Response.Relayer__settle ||
+            response != Response.Relayer__dispute
+        ) {
+            revert InvalidResponse(response);
+        }
 
-    //     // Set the order status to cancelled
-    //     orderStatus[orderHash] = OrderStatus.Cancelled;
-
-    //     // Update the relayer's outstanding balance
-    //     unchecked {
-    //         balances[order.relayer].outstandingBalance -= order
-    //             .collateralAmount;
-    //     }
-
-    //     // Emit an OrderCancelled event
-    //     emit OrderCancelled(order.user, order.relayer, orderHash);
-    // }
-
-    function _setRelayerResponse(Response response) internal view {
-        if (response != )
+        // If Relayer wishes to settle, set the claim status
+        if (response == Response.Relayer__settle) {
+            claimContext[commitmentId].status = ClaimStatus
+                .Initiated__relayerSettle__awaitingUserResponse;
+        }
     }
 
     function _resolveOrder(
@@ -286,10 +305,10 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
             responseWindow;
 
         // Lock msg.sender's dispute bond
-        balances[msg.sender].outstandingBalance += msg.value;
+        escrowBalances[msg.sender].locked += msg.value;
 
         // Update msg.sender's total balance
-        balances[msg.sender].totalBalance += msg.value;
+        escrowBalances[msg.sender].totalBalance += msg.value;
     }
 
     function _validateDisputeBond() internal {
@@ -349,52 +368,6 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
                 block.timestamp,
                 claimContext[commitmentId].responseDeadline
             );
-        }
-    }
-
-    /// @notice Internal function to settle an order's balances by updating
-    ///         the relayer's outstanding collateral balance and crediting
-    ///         output fees
-    /// @param order The order to settle
-    /// @param outputs The outputs to settle
-    /// @param verdict A boolean indicating whether the order was fulfilled
-    function _settleBalances(
-        Order memory order,
-        TokenTransfer[] memory outputs,
-        Verdict verdict
-    ) internal {
-        // Update the relayer's outstanding balanceg
-        balances[order.relayer].outstandingBalance -= order.collateralAmount;
-
-        // If the verdict was Refund, refund the collateral to the user
-        if (verdict == Verdict.Refund) {
-            // Subtract the collateral amount from the relayer's totalCollateralBalance
-            balances[order.relayer].totalBalance -= order.collateralAmount;
-
-            // Add the collateral amount to the user's relayEthBalance
-            balances[order.user].relayEthBalance += order.collateralAmount;
-        }
-
-        // Iterate over outputs to check if balances need to be updated
-        for (uint256 i = 0; i < outputs.length; i++) {
-            TokenTransfer memory output = outputs[i];
-
-            // If chainId is 0, deduct from `from` and add to `to`
-            if (output.token == address(0) && output.chainId == 0) {
-                // Revert if the `from` address does not have enough relayEthBalance
-                if (output.amount > balances[output.from].relayEthBalance) {
-                    revert InsufficientFunds(
-                        balances[output.from].relayEthBalance,
-                        output.amount
-                    );
-                }
-
-                // Deduct the amount from the `from` address
-                balances[output.from].relayEthBalance -= output.amount;
-
-                // Add the amount to the `to` address
-                balances[output.to].relayEthBalance += output.amount;
-            }
         }
     }
 }
