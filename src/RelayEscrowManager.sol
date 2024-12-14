@@ -83,6 +83,10 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
 
     receive() external payable {}
 
+    /*//////////////////////////////////////////////////////////////
+                            OWNER FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
     function setClaimWindow(uint24 _claimWindow) public onlyOwner {
         claimWindow = _claimWindow;
     }
@@ -104,6 +108,10 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     ) public onlyOwner {
         withdrawalLockDuration = _withdrawalLockDuration;
     }
+
+    /*//////////////////////////////////////////////////////////////
+                                CORE LOGIC
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice Deposit collateral on behalf of a relayer
     function depositEscrow(address relayer) public payable {
@@ -252,6 +260,10 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
             revert InsufficientBalance();
         }
     }
+
+    /*//////////////////////////////////////////////////////////////
+                            INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
     function _validateRelayerResponse(
         Response response,
