@@ -31,6 +31,10 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
+    error InsufficientBalance(
+        uint256 requestedAmount,
+        uint256 withdrawableBalance
+    );
     error InvalidSignature(address expectedSigner);
     error InvalidClaimStatus(
         bytes32 commitmentId,
@@ -116,25 +120,31 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     /// @notice Deposit collateral on behalf of a relayer
     function depositEscrow(address relayer) public payable {
         // Increment the relayer's total balance
-        balances[relayer].totalBalance += msg.value;
+        escrowBalances[relayer].totalBalance += msg.value;
     }
 
     /// @notice Withdraw collateral from the escrow contract
     /// @param amount The amount to withdraw
-    function withdrawEscrow(uint256 amount) public {
-        // Validate
-        _validateWithdrawalRequest(amount);
+    function withdrawEscrow() public {
+        uint256 amount = withdrawalRequests[msg.sender].amount;
+        uint256 timelockExpiration = withdrawalRequests[msg.sender]
+            .timelockExpiration;
 
-        uint256 withdrawableBalance = balances[msg.sender].totalBalance -
-            balances[msg.sender].outstandingBalance;
+        // Revert if withdrawal timelock has not expired yet
+        if (timelockExpiration > block.timestamp) {
+            revert TooSoon();
+        }
 
-        // Revert if amount exceeds withdrawable balance
+        uint256 withdrawableBalance = escrowBalances[msg.sender].totalBalance -
+            escrowBalances[msg.sender].outstandingBalance;
+
+        // Revert if withdrawal amount exceeds withdrawable balance
         if (amount > withdrawableBalance)
             revert InsufficientFunds(withdrawableBalance, amount);
 
         unchecked {
             // Decrement the sender's total balance
-            balances[msg.sender].totalBalance -= amount;
+            escrowBalances[msg.sender].totalBalance -= amount;
         }
 
         // Transfer the amount to the relayer
@@ -149,24 +159,25 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     }
 
     function initiateWithdrawal(uint256 amount) external {
-        // Get the user's total balance
-        uint256 totalBalance = escrowBalances[msg.sender].totalBalance;
-
-        uint256 withdrawableBalance = totalBalance -
+        // Validate that the withdrawal amount is less than the user's withdrawable balance
+        uint256 withdrawableBalance = escrowBalances[msg.sender].totalBalance -
             escrowBalances[msg.sender].lockedBalance;
 
-        // Revert if the user has no withdrawable balance
-        if (totalBalance == 0) {
-            revert InsufficientBalance();
+        // Revert if the withdrawal amount exceeds the user's withdrawable balance
+        if (amount > withdrawableBalance) {
+            revert InsufficientBalance(amount, withdrawableBalance);
         }
 
         // Revert if the user has already initiated a withdrawal
-        if (escrowBalances[msg.sender].timelock > 0) {
+        if (withdrawalRequests[msg.sender].timelockExpiration > 0) {
             revert WithdrawalAlreadyInitiated();
         }
 
-        // Set the timelock
-        escrowBalances[msg.sender].timelock = block.timestamp + lockDuration;
+        // Set the withdrawal request
+        withdrawalRequests[msg.sender] = WithdrawalRequest({
+            amount: amount,
+            timelockExpiration: block.timestamp + withdrawalLockDuration
+        });
     }
 
     /// @notice Initiate a new order
@@ -247,24 +258,9 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         Response response
     ) public {}
 
-    function _validateWithdrawalRequest(uint256 amount) internal view {
-        // Revert if timelock has not expired yet
-        if (
-            withdrawalRequests[msg.sender].timelockExpiration > block.timestamp
-        ) {
-            revert TooSoon();
-        }
-
-        // Validate that the withdrawal amount is less than the user's total balance
-        if (amount > escrowBalances[msg.sender].totalBalance) {
-            revert InsufficientBalance();
-        }
-    }
-
     /*//////////////////////////////////////////////////////////////
                             INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
     function _validateRelayerResponse(
         Response response,
         bytes32 commitmentId
