@@ -118,13 +118,13 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Deposit collateral on behalf of a relayer
+    /// @param relayer The address of the relayer
     function depositEscrow(address relayer) public payable {
         // Increment the relayer's total balance
         escrowBalances[relayer].totalBalance += msg.value;
     }
 
     /// @notice Withdraw collateral from the escrow contract
-    /// @param amount The amount to withdraw
     function withdrawEscrow() public {
         uint256 amount = withdrawalRequests[msg.sender].amount;
         uint256 timelockExpiration = withdrawalRequests[msg.sender]
@@ -147,6 +147,12 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
             escrowBalances[msg.sender].totalBalance -= amount;
         }
 
+        // Reset the sender's withdrawal request
+        withdrawalRequests[msg.sender] = WithdrawalRequest({
+            amount: 0,
+            timelockExpiration: 0
+        });
+
         // Transfer the amount to the relayer
         (bool success, bytes memory data) = payable(msg.sender).call{
             value: amount
@@ -158,6 +164,8 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         }
     }
 
+    /// @notice Initiate a withdrawal request
+    /// @param amount The amount to withdraw
     function initiateWithdrawal(uint256 amount) external {
         // Validate that the withdrawal amount is less than the user's withdrawable balance
         uint256 withdrawableBalance = escrowBalances[msg.sender].totalBalance -
@@ -180,10 +188,12 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         });
     }
 
-    /// @notice Initiate a new order
-    /// @param order The order to initiate
+    /// @notice Initiate a new claim
+    /// @param order The cross chain order
+    /// @param depositTxHash The hash of the deposit transaction
     /// @param relayerSig The relayer's signature
-    /// @return orderHash The hash of the initiated order
+    /// @return resolvedOrder The resolved cross chain order
+    /// @return commitmentId The commitmentId of the claim
     function initiateClaim(
         GaslessCrossChainOrder order,
         bytes32 depositTxHash,
@@ -193,18 +203,14 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         payable
         returns (ResolvedCrossChainOrder resolvedOrder, bytes32 commitmentId)
     {
-        // Generate the commitment hash
-        bytes32 commitmentHash = _getCommitmentHash(commitment);
+        // Generate the order hash
+        bytes32 orderHash = _getOrderHash(order);
 
         // Validate the relayer signature
-        _validateRelayerSignature(
-            commitment.relayer,
-            commitmentHash,
-            relayerSig
-        );
+        _validateRelayerSignature(order.relayer, orderHash, relayerSig);
 
         // Validate that the claim has not already been initiated
-        _validateClaimStatus(commitment.commitmentId, ClaimStatus.NotInitiated);
+        _validateClaimStatus(order.commitmentId, ClaimStatus.NotInitiated);
 
         // Validate that the claim window has not expired
         _validateClaimWindow(commitment.quoteExpiration);
@@ -261,6 +267,24 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     /*//////////////////////////////////////////////////////////////
                             INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+    function _getOrderHash(
+        GaslessCrossChainOrder order
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(
+                    order.originSettler,
+                    order.user,
+                    order.nonce,
+                    order.originChainId,
+                    order.openDeadline,
+                    order.fillDeadline,
+                    order.orderDataType,
+                    order.orderData
+                )
+            );
+    }
+
     function _validateRelayerResponse(
         Response response,
         bytes32 commitmentId
@@ -334,11 +358,11 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
 
     function _validateRelayerSignature(
         address relayer,
-        bytes32 commitmentHash,
+        bytes32 orderHash,
         bytes relayerSig
     ) internal view {
         // Validate the relayer's signature
-        if (!relayer.isValidSignatureNow(commitmentHash, relayerSig))
+        if (!relayer.isValidSignatureNow(orderHash, relayerSig))
             revert InvalidSignature(relayer);
     }
 
