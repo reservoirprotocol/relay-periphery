@@ -5,7 +5,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {IRelayEscrowManager} from "./interfaces/IRelayEscrowManager.sol";
 import {ClaimContext, ClaimStatus} from "./utils/RelayStructs.sol";
-import {GaslessCrossChainOrder, ResolvedCrossChainOrder, RelayInput, RelayOrderData, RelayOutput, WithdrawalRequest} from "./utils/ERC7683Structs.sol";
+import {GaslessCrossChainOrder, ResolvedCrossChainOrder, Output, RelayInput, RelayOrderData, RelayOutput, WithdrawalRequest} from "./utils/ERC7683Structs.sol";
 
 /// @title RelayEscrow v1
 /// @notice RelayEscrowManager holds Relayer collateral and allows Users
@@ -68,7 +68,7 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
     mapping(address => WithdrawalRequest) public withdrawalRequests;
 
     /// @notice Mapping of commitmentId to claim context
-    mapping(bytes32 => ClaimStatus) public claimContext;
+    mapping(bytes32 => ClaimContext) public claimContext;
 
     constructor(
         uint24 _claimWindow,
@@ -203,6 +203,12 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         payable
         returns (ResolvedCrossChainOrder resolvedOrder, bytes32 commitmentId)
     {
+        // Decode the commitmentId, bond, and salt from the orderData
+        (bytes32 commitmentId, uint256 bond, bytes32 salt) = abi.decode(
+            order.orderData,
+            (bytes32, uint256, bytes32)
+        );
+
         // Generate the order hash
         bytes32 orderHash = _getOrderHash(order);
 
@@ -213,7 +219,7 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         _validateClaimStatus(order.commitmentId, ClaimStatus.NotInitiated);
 
         // Validate that the claim window has not expired
-        _validateClaimWindow(commitment.quoteExpiration);
+        _validateClaimWindow(order.fillDeadline);
 
         // Validate the bond amount and update the user's balance
         _validateDisputeBond();
@@ -229,7 +235,7 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
             commitment.user,
             commitment.relayer,
             commitment.commitmentId
-        );
+        );g
 
         return commitment.commitmentId;
     }
@@ -246,7 +252,7 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
         );
 
         // Validate that the response window has not expired
-        _validateRelayerResponseDeadline(commitmentId);
+        _validateResponseDeadline(commitmentId);
 
         // Set the claim status based on the Relayer's response
         _validateRelayerResponse(Response);
@@ -313,6 +319,28 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
             (RelayOrderData)
         );
 
+        Output[] memory maxSpent = new Output[](1);
+
+        // Convert RelayOutput to maxSpent
+        maxSpent[0] = Output({
+            token: orderData.output.token,
+            amount: orderData.output.amount,
+            recipient: orderData.output.to,
+            chainId: orderData.output.chainId
+        });
+
+        Output[] memory minReceived = new Output[](orderData.inputs.length);
+
+        // Convert RelayInput to minReceived
+        for (uint256 i = 0; i < orderData.inputs.length; i++) {
+            minReceived[i] = Output({
+                token: orderData.inputs[i].token,
+                amount: orderData.inputs[i].amount,
+                recipient: orderData.inputs[i].to,
+                chainId: orderData.inputs[i].chainId
+            });
+        }
+
         // Create the ResolvedCrossChainOrder
         resolvedOrder = ResolvedCrossChainOrder({
             user: order.user,
@@ -320,8 +348,8 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
             openDeadline: order.openDeadline,
             fillDeadline: order.fillDeadline,
             orderId: orderData.commitmentId,
-            maxSpent: orderData.inputs, // TODO: come back to maxSpent, minReceived, fillInstructions
-            minReceived: orderData.output,
+            maxSpent: maxSpent, // TODO: come back to fillInstructions
+            minReceived: minReceived,
             fillInstructions: orderData.fillInstructions
         });
     }
@@ -379,26 +407,40 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
             );
     }
 
-    function _validateClaimWindow(uint256 quoteExpiration) internal view {
+    function _validateClaimWindow(uint256 fillDeadline) internal view {
         // Calculate the claim window expiration
-        uint256 claimWindowExpiration = quoteExpiration + claimWindow;
+        uint256 claimInitiationDeadline = fillDeadline + claimWindow;
 
         // Validate that the claim window has not expired
-        if (block.timestamp > claimWindowExpiration) {
-            revert ClaimWindowExpired(block.timestamp, claimWindowExpiration);
+        if (block.timestamp > claimInitiationDeadline) {
+            revert ClaimWindowExpired(block.timestamp, claimInitiationDeadline);
         }
     }
 
-    function _validateRelayerResponseDeadline(
-        bytes32 commitmentId
-    ) internal view {
-        // Validate that the response window has not expired
+    function _validateResponseDeadline(bytes32 commitmentId) internal view {
+        // Determine if the claim is awaiting a relayer response or user response
+        bool awaitingRelayer = claimContext[commitmentId].status ==
+            ClaimStatus.Initiated__awaitingRelayerResponse
+            ? true
+            : false;
+
+        // If awaiting relayer response, validate that the relayer response deadline has not expired
         if (
+            awaitingRelayer &&
             block.timestamp > claimContext[commitmentId].relayerResponseDeadline
         ) {
             revert ClaimWindowExpired(
                 block.timestamp,
-                claimContext[commitmentId].responseDeadline
+                claimContext[commitmentId].relayerResponseDeadline
+            );
+            // If awaiting user response, validate that the user response deadline has not expired
+        } else if (
+            !awaitingRelayer &&
+            block.timestamp > claimContext[commitmentId].userResponseDeadline
+        ) {
+            revert ClaimWindowExpired(
+                block.timestamp,
+                claimContext[commitmentId].userResponseDeadline
             );
         }
     }
