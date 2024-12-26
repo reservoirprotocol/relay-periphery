@@ -3,9 +3,10 @@
 struct GaslessCrossChainOrder {
     /// @dev The contract address that the order is meant to be settled by.
     /// Fillers send this order to this contract address on the origin chain
+    /// This field is not validated in RelayEscrow v1
     address originSettler;
     /// @dev The address of the user who is initiating the swap,
-    /// whose input tokens will be taken and escrowed
+    /// whose input tokens will be sent to the Relayer
     address user;
     /// @dev Nonce to be used as replay protection for the order
     uint256 nonce;
@@ -53,7 +54,7 @@ struct ResolvedCrossChainOrder {
 struct RelayOrderData {
     bytes32 commitmentId;
     RelayInput[] inputs;
-    RelayOutput output;
+    RelayOutput output;g
 }
 
 struct RelayInput {
@@ -62,7 +63,7 @@ struct RelayInput {
     uint256 chainId;
     uint256 value;
     uint256 weight;
-    Refund refund;
+    Refund[] refund;
 }
 
 struct RelayOutput {

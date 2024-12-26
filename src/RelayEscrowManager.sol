@@ -235,7 +235,7 @@ contract EscrowManager is IRelayEscrowManager, Ownable {
             commitment.user,
             commitment.relayer,
             commitment.commitmentId
-        );g
+        );
 
         return commitment.commitmentId;
     }
