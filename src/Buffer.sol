@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
-import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
+import {Ownable} from "solady/src/auth/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title  RelayDepositorV1
 /// @author Reservoir
 /// @notice A public utility contract for linking deposit transfers to a reference
-contract RelayDepositorV1 {
+contract Relay {
     using SafeERC20 for IERC20;
 
     /// @notice Revert if native transfer failed
@@ -23,8 +22,14 @@ contract RelayDepositorV1 {
         bytes32 id
     );
 
-    constructor(address permit2) {
-        PERMIT2 = IPermit2(permit2);
+    address public allocator;
+
+    constructor(address _allocator) {
+        allocator = _allocator;
+    }
+
+    function setAllocator(address _allocator) external onlyOwner {
+        allocator = _allocator;
     }
 
     /// @notice Transfer native tokens to `address to` and emit a Deposit event
