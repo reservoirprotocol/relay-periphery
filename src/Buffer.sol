@@ -7,7 +7,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 /// @title  RelayDepositorV1
 /// @author Reservoir
-/// @notice A public utility contract for linking deposit transfers to a reference
 contract Relay {
     using SafeERC20 for IERC20;
 
@@ -15,46 +14,41 @@ contract Relay {
     error NativeTransferFailed();
 
     /// @notice Emit event when a deposit is made
-    event Deposit(
-        address indexed to,
-        address indexed token,
-        uint256 value,
-        bytes32 id
-    );
+    event Deposit(address indexed token, uint256 value, bytes32 id);
 
     address public allocator;
+
+    // Emit a Deposit event when native tokens are received
+    receive() external payable {
+        emit Deposit(address(0), msg.value, bytes32(0));
+    }
 
     constructor(address _allocator) {
         allocator = _allocator;
     }
 
+    /// @notice Set the allocator address
+    /// @param _allocator The new allocator address
     function setAllocator(address _allocator) external onlyOwner {
         allocator = _allocator;
     }
 
-    /// @notice Transfer native tokens to `address to` and emit a Deposit event
-    /// @param to The recipient address
+    /// @notice Deposit native tokens to the contract and emit a Deposit event
     /// @param id The id associated with the transfer
-    function transferNative(address to, bytes32 id) external payable {
-        // Transfer the funds to the recipient
-        _send(to, msg.value);
-
+    function depositNative(bytes32 id) external payable {
         // Emit the Deposit event
-        emit Deposit(to, address(0), msg.value, id);
+        emit Deposit(address(0), msg.value, id);
     }
 
-    /// @notice Transfer ERC20 tokens available in the contract and emit a Deposit event
-    /// @param to The recipient address
+    /// @notice Deposit ERC20 token to the contract and emit a Deposit event
     /// @param token The ERC20 token to transfer
     /// @param id The id associated with the transfer
-    function transferErc20(address to, address token, bytes32 id) external {
-        uint256 amount = IERC20(token).balanceOf(address(this));
-
-        // Transfer the ERC20 tokens to the recipient
-        IERC20(token).transfer(to, amount);
+    function depositErc20(address token, uint256 amount, bytes32 id) external {
+        // Transfer the tokens to the contract
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
         // Emit the Deposit event
-        emit Deposit(to, token, amount, id);
+        emit Deposit(token, amount, id);
     }
 
     /// @notice Internal function for transferring ETH
