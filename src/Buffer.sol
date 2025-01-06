@@ -20,7 +20,7 @@ contract Relay {
 
     // Emit a Deposit event when native tokens are received
     receive() external payable {
-        emit Deposit(address(0), msg.value, bytes32(0));
+        emit Deposit(address(0), msg.value, msg.data);
     }
 
     constructor(address _allocator) {
