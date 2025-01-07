@@ -2,15 +2,25 @@
 pragma solidity ^0.8.23;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
+import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/// @title  RelayDepositorV1
+struct WithdrawRequest {
+    address token;
+    uint256 amount;
+    address to;
+}
+
+/// @title  RelayCredit
 /// @author Reservoir
-contract Relay {
+contract RelayCredit {
     using SafeERC20 for IERC20;
+    using SignatureCheckerLib for address;
 
     error InvalidAllocator();
+
+    error InvalidSignature();
 
     /// @notice Revert if native transfer failed
     error NativeTransferFailed();
@@ -74,6 +84,29 @@ contract Relay {
 
         // Emit the Deposit event
         emit Deposit(token, amount, id);
+    }
+
+    function withdraw(
+        WithdrawRequest calldata request,
+        bytes memory signature
+    ) external {
+        // Get the request hash
+        bytes32 requestHash = keccak256(
+            abi.encode(request.token, request.amount, request.to)
+        );
+
+        // Validate the allocator signature
+        if (!allocator.isValidSignatureNow(requestHash, signature)) {
+            revert InvalidSignature();
+        }
+
+        // If the token is native, transfer ETH to the recipient
+        if (request.token == address(0)) {
+            _send(request.to, request.amount);
+        } else {
+            // Transfer the ERC20 tokens to the recipient
+            IERC20(request.token).safeTransfer(request.to, request.amount);
+        }
     }
 
     /// @notice Internal function for transferring ETH
