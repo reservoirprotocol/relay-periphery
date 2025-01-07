@@ -10,6 +10,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract Relay {
     using SafeERC20 for IERC20;
 
+    error InvalidAllocator();
+
     /// @notice Revert if native transfer failed
     error NativeTransferFailed();
 
@@ -30,6 +32,9 @@ contract Relay {
     /// @notice Set the allocator address
     /// @param _allocator The new allocator address
     function setAllocator(address _allocator) external onlyOwner {
+        if (_allocator == address(0)) {
+            revert InvalidAllocator();
+        }
         allocator = _allocator;
     }
 
@@ -40,12 +45,32 @@ contract Relay {
         emit Deposit(address(0), msg.value, id);
     }
 
-    /// @notice Deposit ERC20 token to the contract and emit a Deposit event
+    /// @notice Deposit ERC20 token from msg.sender to the contract and emit a Deposit event
     /// @param token The ERC20 token to transfer
+    /// @param amount The amount to transfer
     /// @param id The id associated with the transfer
     function depositErc20(address token, uint256 amount, bytes32 id) external {
         // Transfer the tokens to the contract
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+
+        // Emit the Deposit event
+        emit Deposit(token, amount, id);
+    }
+
+    /// @notice Deposit ERC20 token from a specific address to the contract and emit a Deposit event
+    /// @dev This function can be called by anyone; users should only approve the exact amount to be transferred to the contract
+    /// @param token The ERC20 token to transfer
+    /// @param from The address to transfer tokens from
+    /// @param amount The amount to transfer
+    /// @param id The id associated with the transfer
+    function depositErc20From(
+        address token,
+        address from,
+        uint256 amount,
+        bytes32 id
+    ) external {
+        // Transfer the tokens to the contract
+        IERC20(token).safeTransferFrom(from, address(this), amount);
 
         // Emit the Deposit event
         emit Deposit(token, amount, id);
