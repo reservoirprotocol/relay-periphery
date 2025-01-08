@@ -2,9 +2,8 @@
 pragma solidity ^0.8.23;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
+import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 struct WithdrawRequest {
     address token;
