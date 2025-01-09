@@ -29,9 +29,10 @@ contract RelayCreditManager is Ownable {
 
     address public allocator;
 
-    // Emit a Deposit event when native tokens are received
+    /// @notice Emit a Deposit event when native tokens are received
+    /// @dev msg.data cannot be reached inside receive() so we do not emit the id as part of the event
     receive() external payable {
-        emit Deposit(msg.sender, address(0), msg.value, bytes32(msg.data));
+        emit Deposit(msg.sender, address(0), msg.value, bytes32(0));
     }
 
     constructor(address _allocator) {
