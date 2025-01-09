@@ -15,7 +15,6 @@ import {PermitSignature} from "permit2-relay/test/utils/PermitSignature.sol";
 import {ApprovalProxy} from "../src/ApprovalProxy.sol";
 import {RelayRouter} from "../src/RelayRouter.sol";
 import {Multicall3} from "../src/utils/Multicall3.sol";
-import {RelayStructs} from "../src/utils/RelayStructs.sol";
 import {NoOpERC20} from "./mocks/NoOpERC20.sol";
 import {TestERC721} from "./mocks/TestERC721.sol";
 import {TestERC721_ERC20PaymentToken} from "./mocks/TestERC721_ERC20PaymentToken.sol";
@@ -26,7 +25,7 @@ struct RelayerWitness {
     address relayer;
 }
 
-contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
+contract RelayRouterTest is Test, BaseRelayTest {
     using SafeERC20 for IERC20;
 
     error Unauthorized();
@@ -482,8 +481,8 @@ contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
             1 ether
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: address(erc20_1),
             allowFailure: false,
             value: 0,
@@ -496,7 +495,7 @@ contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
 
         assertEq(erc20_1.balanceOf(address(router)), 0);
 
-        calls[0] = Call3Value({
+        calls[0] = Multicall3.Call3Value({
             target: address(erc20_1),
             allowFailure: false,
             value: 0,
@@ -548,14 +547,14 @@ contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
             block.timestamp
         );
 
-        Call3Value[] memory calls = new Call3Value[](2);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](2);
+        calls[0] = Multicall3.Call3Value({
             target: USDC,
             allowFailure: false,
             value: 0,
             callData: calldata1
         });
-        calls[1] = Call3Value({
+        calls[1] = Multicall3.Call3Value({
             target: ROUTER_V2,
             allowFailure: false,
             value: 0,
@@ -666,8 +665,8 @@ contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
             1 ether
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: address(noOpERC20),
             allowFailure: false,
             value: 0,
@@ -711,8 +710,8 @@ contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
             1 ether
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: address(erc20_1),
             allowFailure: false,
             value: 0,
@@ -773,8 +772,8 @@ contract RelayRouterTest is Test, BaseRelayTest, RelayStructs {
             recipients
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: address(router),
             allowFailure: false,
             value: 0,
