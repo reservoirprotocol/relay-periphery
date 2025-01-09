@@ -31,7 +31,7 @@ contract RelayCreditManager is Ownable {
 
     // Emit a Deposit event when native tokens are received
     receive() external payable {
-        emit Deposit(address(0), msg.value, msg.data);
+        emit Deposit(msg.sender, address(0), msg.value, bytes32(msg.data));
     }
 
     constructor(address _allocator) {
