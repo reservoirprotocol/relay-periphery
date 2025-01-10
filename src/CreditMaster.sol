@@ -12,9 +12,9 @@ struct WithdrawRequest {
     address to;
 }
 
-/// @title  CrossChainCredit
+/// @title  CreditMaster
 /// @author Reservoir
-contract CrossChainCredit is Ownable, EIP712 {
+contract CreditMaster is Ownable, EIP712 {
     using SafeTransferLib for address;
     using SignatureCheckerLib for address;
 
@@ -27,6 +27,9 @@ contract CrossChainCredit is Ownable, EIP712 {
 
     /// @notice Emit event when a deposit is made
     event Deposit(address depositor, address token, uint256 value, bytes32 id);
+
+    /// @notice Emit event when a withdrawal is made
+    event Withdrawal(address token, uint256 amount, address to);
 
     bytes32 public constant _WITHDRAW_REQUEST_TYPEHASH =
         keccak256("WithdrawRequest(address token,uint256 amount,address to)");
@@ -118,6 +121,8 @@ contract CrossChainCredit is Ownable, EIP712 {
             // Transfer the ERC20 tokens to the recipient
             request.token.safeTransfer(request.to, request.amount);
         }
+
+        emit Withdrawal(request.token, request.amount, request.to);
     }
 
     function _domainNameAndVersion()
@@ -126,7 +131,7 @@ contract CrossChainCredit is Ownable, EIP712 {
         override
         returns (string memory name, string memory version)
     {
-        name = "CrossChainCredit";
+        name = "CreditMaster";
         version = "1";
     }
 }
