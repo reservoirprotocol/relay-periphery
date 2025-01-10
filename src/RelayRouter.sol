@@ -34,7 +34,7 @@ contract RelayRouter is Multicall3, Tstorish {
     error ArrayLengthsMismatch();
 
     uint256 RECIPIENT_STORAGE_SLOT =
-        uint256(keccak256("ERC20Router.recipient"));
+        uint256(keccak256("RelayRouter.recipient"));
 
     IPermit2 private immutable PERMIT2;
     address private immutable MULTICALLER;
