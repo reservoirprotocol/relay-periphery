@@ -49,13 +49,19 @@ contract RelayCreditManager is Ownable {
     }
 
     /// @notice Deposit native tokens to the contract and emit a Deposit event
+    /// @param depositor The address of the depositor to credit. Set to address(0) to credit msg.sender
     /// @param id The id associated with the transfer
     function depositNative(address depositor, bytes32 id) external payable {
+        address depositorAddress = depositor == address(0)
+            ? msg.sender
+            : depositor;
+
         // Emit the Deposit event
-        emit Deposit(depositor, address(0), msg.value, id);
+        emit Deposit(depositorAddress, address(0), msg.value, id);
     }
 
     /// @notice Deposit ERC20 token from msg.sender to the contract and emit a Deposit event
+    /// @param depositor The address of the depositor to credit. Set to address(0) to credit msg.sender
     /// @param token The ERC20 token to transfer
     /// @param amount The amount to transfer
     /// @param id The id associated with the transfer
@@ -68,8 +74,13 @@ contract RelayCreditManager is Ownable {
         // Transfer the tokens to the contract
         token.safeTransferFrom(msg.sender, address(this), amount);
 
+        // Get the depositor address
+        address depositorAddress = depositor == address(0)
+            ? msg.sender
+            : depositor;
+
         // Emit the Deposit event
-        emit Deposit(depositor, token, amount, id);
+        emit Deposit(depositorAddress, token, amount, id);
     }
 
     /// @notice Withdraw tokens from the contract with a signed WithdrawRequest from the Allocator
