@@ -16,6 +16,9 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
     event Deposit(address from, address token, uint256 value, bytes32 id);
     event Withdrawal(address token, uint256 amount, address to);
 
+    error InvalidSignature();
+    error Unauthorized();
+
     CreditMaster cm;
     RelayRouter router;
     ApprovalProxy approvalProxy;
@@ -120,6 +123,20 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         assertEq(amount, erc20_1.balanceOf(address(cm)));
     }
 
+    function testSetAllocator() public {
+        Account memory newAllocator = makeAccountAndDeal(
+            "newAllocator",
+            1 ether
+        );
+
+        vm.prank(alice.addr);
+        vm.expectRevert(Unauthorized.selector);
+        cm.setAllocator(newAllocator.addr);
+
+        cm.setAllocator(newAllocator.addr);
+        assertEq(cm.allocator(), newAllocator.addr);
+    }
+
     function testWithdraw__Native(uint256 amount) public {
         // Run depositNative test
         testDepositEth(amount);
@@ -195,6 +212,35 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         uint256 aliceBalanceAfter = erc20_1.balanceOf(alice.addr);
 
         assertEq(aliceBalanceAfter - aliceBalanceBefore, amount);
+    }
+
+    function testWithdraw__InvalidSignature(uint256 amount) public {
+        // Create withdraw request
+        WithdrawRequest memory request = WithdrawRequest({
+            token: address(0),
+            amount: amount,
+            to: alice.addr
+        });
+
+        bytes32 digest = _hashTypedData(
+            keccak256(
+                abi.encode(
+                    _WITHDRAW_REQUEST_TYPEHASH,
+                    request.token,
+                    request.amount,
+                    request.to
+                )
+            )
+        );
+
+        // Sign request with alice's key
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, digest);
+        bytes memory signature = bytes.concat(r, s, bytes1(v));
+
+        assertEq(cm.allocator(), allocator.addr);
+
+        vm.expectRevert(InvalidSignature.selector);
+        cm.withdraw(request, signature);
     }
 
     function _domainNameAndVersion()

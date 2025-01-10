@@ -44,6 +44,7 @@ contract CreditMaster is Ownable, EIP712 {
 
     constructor(address _allocator) {
         allocator = _allocator;
+        _initializeOwner(msg.sender);
     }
 
     /// @notice Set the allocator address
