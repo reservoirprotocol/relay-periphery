@@ -5,9 +5,9 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IRelayRouter} from "../src/interfaces/IRelayRouter.sol";
-import {RelayStructs} from "../src/utils/RelayStructs.sol";
+import {Multicall3} from "./utils/Multicall3.sol";
 
-contract ApprovalProxy is Ownable, RelayStructs {
+contract ApprovalProxy is Ownable {
     using SafeERC20 for IERC20;
 
     error ArrayLengthsMismatch();
@@ -47,7 +47,7 @@ contract ApprovalProxy is Ownable, RelayStructs {
     function transferAndMulticall(
         address[] calldata tokens,
         uint256[] calldata amounts,
-        Call3Value[] calldata calls,
+        Multicall3.Call3Value[] calldata calls,
         address refundTo
     ) external payable returns (bytes memory) {
         // Revert if array lengths do not match
