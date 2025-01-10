@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {EIP712} from "solady/src/utils/EIP712.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
@@ -11,9 +12,9 @@ struct WithdrawRequest {
     address to;
 }
 
-/// @title  RelayCreditManager
+/// @title  CrossChainCredit
 /// @author Reservoir
-contract RelayCreditManager is Ownable {
+contract CrossChainCredit is Ownable, EIP712 {
     using SafeTransferLib for address;
     using SignatureCheckerLib for address;
 
@@ -26,6 +27,9 @@ contract RelayCreditManager is Ownable {
 
     /// @notice Emit event when a deposit is made
     event Deposit(address depositor, address token, uint256 value, bytes32 id);
+
+    bytes32 public constant _WITHDRAW_REQUEST_TYPEHASH =
+        keccak256("WithdrawRequest(address token,uint256 amount,address to)");
 
     address public allocator;
 
@@ -90,13 +94,20 @@ contract RelayCreditManager is Ownable {
         WithdrawRequest calldata request,
         bytes memory signature
     ) external {
-        // Get the request hash
-        bytes32 requestHash = keccak256(
-            abi.encode(request.token, request.amount, request.to)
+        // Get the EIP-712 digest to be signed
+        bytes32 digest = _hashTypedData(
+            keccak256(
+                abi.encode(
+                    _WITHDRAW_REQUEST_TYPEHASH,
+                    request.token,
+                    request.amount,
+                    request.to
+                )
+            )
         );
 
         // Validate the allocator signature
-        if (!allocator.isValidSignatureNow(requestHash, signature)) {
+        if (!allocator.isValidSignatureNow(digest, signature)) {
             revert InvalidSignature();
         }
 
@@ -107,5 +118,15 @@ contract RelayCreditManager is Ownable {
             // Transfer the ERC20 tokens to the recipient
             request.token.safeTransfer(request.to, request.amount);
         }
+    }
+
+    function _domainNameAndVersion()
+        internal
+        pure
+        override
+        returns (string memory name, string memory version)
+    {
+        name = "CrossChainCredit";
+        version = "1";
     }
 }
