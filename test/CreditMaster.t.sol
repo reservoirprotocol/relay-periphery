@@ -15,11 +15,6 @@ import {RelayRouter} from "../src/RelayRouter.sol";
 contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
     event Deposit(address from, address token, uint256 value, bytes32 id);
     event Withdrawal(address token, uint256 amount, address to);
-    event TestTypehash(bytes32 typehash);
-    event Digest(bytes32 digest);
-    event NewWithdrawRequest(address token, uint256 amount, address to);
-    event TestChainId(uint256 chainId);
-    event TestDomainSeparator(bytes32 separator);
 
     CreditMaster cm;
     RelayRouter router;
@@ -126,13 +121,8 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
     }
 
     function testWithdraw__Native(uint256 amount) public {
-        vm.chainId(1);
-
         // Run depositNative test
         testDepositEth(amount);
-        emit TestTypehash(_WITHDRAW_REQUEST_TYPEHASH);
-
-        // emit TestNameAndVersion()
 
         // Create withdraw request
         WithdrawRequest memory request = WithdrawRequest({
@@ -140,8 +130,6 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
             amount: amount,
             to: alice.addr
         });
-
-        emit NewWithdrawRequest(request.token, request.amount, request.to);
 
         bytes32 digest = _hashTypedData(
             keccak256(
@@ -153,9 +141,6 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
                 )
             )
         );
-
-        emit Digest(digest);
-        emit TestChainId(block.chainid);
 
         // Sign request
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(allocator.key, digest);
@@ -170,6 +155,44 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         uint256 aliceBalanceBefore = address(alice.addr).balance;
         cm.withdraw(request, signature);
         uint256 aliceBalanceAfter = address(alice.addr).balance;
+
+        assertEq(aliceBalanceAfter - aliceBalanceBefore, amount);
+    }
+
+    function testWithdraw__ERC20(uint96 amount) public {
+        testDepositErc20(amount);
+
+        // Create withdraw request
+        WithdrawRequest memory request = WithdrawRequest({
+            token: address(erc20_1),
+            amount: amount,
+            to: alice.addr
+        });
+
+        bytes32 digest = _hashTypedData(
+            keccak256(
+                abi.encode(
+                    _WITHDRAW_REQUEST_TYPEHASH,
+                    request.token,
+                    request.amount,
+                    request.to
+                )
+            )
+        );
+
+        // Sign request
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(allocator.key, digest);
+        bytes memory signature = bytes.concat(r, s, bytes1(v));
+
+        assertEq(cm.allocator(), allocator.addr);
+
+        vm.expectEmit(true, true, true, true, address(cm));
+        emit Withdrawal(address(erc20_1), amount, alice.addr);
+
+        // Call `withdraw`
+        uint256 aliceBalanceBefore = erc20_1.balanceOf(alice.addr);
+        cm.withdraw(request, signature);
+        uint256 aliceBalanceAfter = erc20_1.balanceOf(alice.addr);
 
         assertEq(aliceBalanceAfter - aliceBalanceBefore, amount);
     }
