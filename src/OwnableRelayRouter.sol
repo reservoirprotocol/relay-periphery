@@ -3,13 +3,17 @@ pragma solidity ^0.8.25;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
+import {RelayRouter} from "./RelayRouter.sol";
 
+/// @title OwnableRelayRouter
+/// @notice An owned RelayRouter that can only be called by the owner
 contract OwnableRelayRouter is RelayRouter, Ownable {
     constructor(address permit2, address owner) RelayRouter(permit2) {
         // Set the owner that can perform multicalls and withdraw funds stuck in the contract
         _initializeOwner(owner);
     }
 
+    /// @notice Withdraw function in case funds get stuck in contract
     function withdraw() external onlyOwner {
         _send(msg.sender, address(this).balance);
     }
