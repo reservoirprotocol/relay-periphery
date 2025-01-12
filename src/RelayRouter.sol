@@ -68,7 +68,7 @@ contract RelayRouter is Multicall3, Tstorish {
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
         Call3Value[] calldata calls,
         bytes memory permitSignature
-    ) external payable returns (Result[] memory returnData) {
+    ) external payable virtual returns (Result[] memory returnData) {
         if (permitSignature.length != 0) {
             // Use permit to transfer tokens from user to router
             _handlePermitBatch(user, permit, permitSignature);
@@ -88,7 +88,7 @@ contract RelayRouter is Multicall3, Tstorish {
     function multicall(
         Call3Value[] calldata calls,
         address nftRecipient
-    ) external payable returns (Result[] memory returnData) {
+    ) external payable virtual returns (Result[] memory returnData) {
         // Set the NFT recipient if provided
         if (nftRecipient != address(0)) {
             _setRecipient(nftRecipient);
@@ -113,7 +113,7 @@ contract RelayRouter is Multicall3, Tstorish {
     function cleanupErc20s(
         address[] calldata tokens,
         address[] calldata recipients
-    ) public {
+    ) public virtual {
         // Revert if array lengths do not match
         if (tokens.length != recipients.length) {
             revert ArrayLengthsMismatch();
