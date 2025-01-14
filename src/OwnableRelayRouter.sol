@@ -2,54 +2,18 @@
 pragma solidity ^0.8.25;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
-import {Tstorish} from "tstorish/src/Tstorish.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
-import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
-import {Multicaller} from "./utils/Multicaller.sol";
+import {RelayRouter} from "./RelayRouter.sol";
 
-struct RelayerWitness {
-    address relayer;
-}
-
-contract OwnableRelayRouter is Ownable, Multicaller, Tstorish {
-    using SafeERC20 for IERC20;
-
-    // --- Errors --- //
-
-    /// @notice Revert if this contract is set as the recipient
-    error InvalidRecipient(address recipient);
-
-    /// @notice Revert if the target is invalid
-    error InvalidTarget(address target);
-
-    /// @notice Revert if the native transfer failed
-    error NativeTransferFailed();
-
-    /// @notice Revert if no recipient is set
-    error NoRecipientSet();
-
-    uint256 RECIPIENT_STORAGE_SLOT =
-        uint256(keccak256("ERC20Router.recipient"));
-
-    IPermit2 private immutable PERMIT2;
-
-    string public constant _RELAYER_WITNESS_TYPE_STRING =
-        "RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)";
-    bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
-        keccak256("RelayerWitness(address relayer)");
-
-    constructor(address permit2, address owner) Tstorish() {
-        // Set the address of the Permit2 contract
-        PERMIT2 = IPermit2(permit2);
-
+/// @title OwnableRelayRouter
+/// @notice An owned RelayRouter that can only be called by the owner
+contract OwnableRelayRouter is RelayRouter, Ownable {
+    constructor(address permit2, address owner) RelayRouter(permit2) {
         // Set the owner that can perform multicalls and withdraw funds stuck in the contract
         _initializeOwner(owner);
     }
 
+    /// @notice Withdraw function in case funds get stuck in contract
     function withdraw() external onlyOwner {
         _send(msg.sender, address(this).balance);
     }
@@ -73,21 +37,16 @@ contract OwnableRelayRouter is Ownable, Multicaller, Tstorish {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable onlyOwner returns (bytes[] memory) {
-        // Revert if array lengths do not match
-        if (targets.length != datas.length || datas.length != values.length) {
-            revert ArrayLengthsMismatch();
-        }
-
-        if (permitSignature.length != 0) {
-            // Use permit to transfer tokens from user to router
-            _handlePermitBatch(user, permit, permitSignature);
-        }
-
-        // Perform the multicall and send leftover to refundTo
-        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
-
-        return data;
+    ) external payable override onlyOwner returns (bytes[] memory) {
+        super.permitMulticall(
+            user,
+            permit,
+            targets,
+            datas,
+            values,
+            refundTo,
+            permitSignature
+        );
     }
 
     /// @notice Perform the multicall and send leftover ETH to the refundTo address
@@ -103,22 +62,8 @@ contract OwnableRelayRouter is Ownable, Multicaller, Tstorish {
         bytes[] calldata datas,
         uint256[] calldata values,
         address refundTo
-    ) external payable onlyOwner returns (bytes[] memory) {
-        // Revert if array lengths do not match
-        if (targets.length != datas.length || datas.length != values.length) {
-            revert ArrayLengthsMismatch();
-        }
-
-        // Set the recipient in storage
-        _setRecipient(refundTo);
-
-        // Perform the multicall
-        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
-
-        // Clear the recipient in storage
-        _clearRecipient();
-
-        return data;
+    ) external payable override onlyOwner returns (bytes[] memory) {
+        super.multicall(targets, datas, values, refundTo);
     }
 
     /// @notice Send leftover ERC20 tokens to the refundTo address
@@ -128,201 +73,7 @@ contract OwnableRelayRouter is Ownable, Multicaller, Tstorish {
     function cleanupErc20s(
         address[] calldata tokens,
         address[] calldata recipients
-    ) external {
-        // Revert if array lengths do not match
-        if (tokens.length != recipients.length) {
-            revert ArrayLengthsMismatch();
-        }
-
-        for (uint256 i; i < tokens.length; i++) {
-            address token = tokens[i];
-            address recipient = recipients[i];
-
-            // Check the router's balance for the token
-            uint256 balance = IERC20(token).balanceOf(address(this));
-
-            // Transfer the token to the recipient address
-            if (balance > 0) {
-                IERC20(token).safeTransfer(recipient, balance);
-            }
-        }
-    }
-
-    /// @notice Internal function to handle a permit batch transfer
-    /// @param user The address of the user
-    /// @param permit The permit details
-    /// @param permitSignature The signature for the permit
-    function _handlePermitBatch(
-        address user,
-        ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        bytes memory permitSignature
-    ) internal {
-        // Create the witness that should be signed over
-        bytes32 witness = keccak256(
-            abi.encode(_EIP_712_RELAYER_WITNESS_TYPE_HASH, msg.sender)
-        );
-
-        // Create the SignatureTransferDetails array
-        ISignatureTransfer.SignatureTransferDetails[]
-            memory signatureTransferDetails = new ISignatureTransfer.SignatureTransferDetails[](
-                permit.permitted.length
-            );
-        for (uint256 i = 0; i < permit.permitted.length; i++) {
-            uint256 amount = permit.permitted[i].amount;
-
-            signatureTransferDetails[i] = ISignatureTransfer
-                .SignatureTransferDetails({
-                    to: address(this),
-                    requestedAmount: amount
-                });
-        }
-
-        // Use the SignatureTransferDetails and permit signature to transfer tokens to the router
-        PERMIT2.permitWitnessTransferFrom(
-            permit,
-            signatureTransferDetails,
-            // When using a permit signature, cannot deposit on behalf of someone else other than `user`
-            user,
-            witness,
-            _RELAYER_WITNESS_TYPE_STRING,
-            permitSignature
-        );
-    }
-
-    /// @notice Internal function to set the recipient address for ERC721 or ERC1155 mint
-    /// @dev If the chain does not support tstore, recipient will be saved in storage
-    /// @param recipient The address of the recipient
-    function _setRecipient(address recipient) internal {
-        // Return early if the recipient is address(0) or address(1), which are special cases for the multicaller
-        // If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
-        if (recipient == address(0) || recipient == address(1)) {
-            return;
-        }
-
-        // For safety, revert if the recipient is this contract
-        // Tokens should either be minted directly to recipient, or transferred to recipient through the onReceived hooks
-        if (recipient == address(this)) {
-            revert InvalidRecipient(address(this));
-        }
-
-        // Set the recipient in storage
-        _setTstorish(RECIPIENT_STORAGE_SLOT, uint256(uint160(recipient)));
-    }
-
-    /// @notice Internal function to get the recipient address for ERC721 or ERC1155 mint
-    function _getRecipient() internal view returns (address) {
-        // Get the recipient from storage
-        return address(uint160(_getTstorish(RECIPIENT_STORAGE_SLOT)));
-    }
-
-    /// @notice Internal function to clear the recipient address for ERC721 or ERC1155 mint
-    function _clearRecipient() internal {
-        // Return if recipient hasn't been set
-        if (_getRecipient() == address(0)) {
-            return;
-        }
-
-        // Clear the recipient in storage
-        _clearTstorish(RECIPIENT_STORAGE_SLOT);
-    }
-
-    function _send(address to, uint256 value) internal {
-        bool success;
-        assembly {
-            // Save gas by avoiding copying the return data to memory.
-            // Provide at most 100k gas to the internal call, which is
-            // more than enough to cover common use-cases of logic for
-            // receiving native tokens (eg. SCW payable fallbacks).
-            success := call(100000, to, value, 0, 0, 0, 0)
-        }
-
-        if (!success) {
-            revert NativeTransferFailed();
-        }
-    }
-
-    function onERC721Received(
-        address /*_operator*/,
-        address /*_from*/,
-        uint256 _tokenId,
-        bytes calldata _data
-    ) external returns (bytes4) {
-        // Get the recipient from storage
-        address recipient = _getRecipient();
-
-        // Revert if no recipient is set
-        // Note this means transferring NFTs to this contract via `safeTransferFrom` will revert,
-        // unless the transfer is part of a multicall that sets the recipient in storage
-        if (recipient == address(0)) {
-            revert NoRecipientSet();
-        }
-
-        // Transfer the NFT to the recipient
-        IERC721(msg.sender).safeTransferFrom(
-            address(this),
-            recipient,
-            _tokenId,
-            _data
-        );
-
-        return this.onERC721Received.selector;
-    }
-
-    function onERC1155Received(
-        address /*_operator*/,
-        address /*_from*/,
-        uint256 _id,
-        uint256 _value,
-        bytes calldata _data
-    ) external returns (bytes4) {
-        // Get the recipient from storage
-        address recipient = _getRecipient();
-
-        // Revert if no recipient is set
-        // Note this means transferring NFTs to this contract via `safeTransferFrom` will revert,
-        // unless the transfer is part of a multicall that sets the recipient in storage
-        if (recipient == address(0)) {
-            revert NoRecipientSet();
-        }
-
-        // Transfer the tokens to the recipient
-        IERC1155(msg.sender).safeTransferFrom(
-            address(this),
-            recipient,
-            _id,
-            _value,
-            _data
-        );
-
-        return this.onERC1155Received.selector;
-    }
-
-    function onERC1155BatchReceived(
-        address /*_operator*/,
-        address /*_from*/,
-        uint256[] calldata _ids,
-        uint256[] calldata _values,
-        bytes calldata _data
-    ) external returns (bytes4) {
-        // Get the recipient from storage
-        address recipient = _getRecipient();
-
-        // Revert if no recipient is set
-        // Note this means transferring NFTs to this contract via `safeTransferFrom` will revert,
-        // unless the transfer is part of a multicall that sets the recipient in storage
-        if (recipient == address(0)) {
-            revert NoRecipientSet();
-        }
-
-        // Transfer the tokens to the recipient
-        IERC1155(msg.sender).safeBatchTransferFrom(
-            address(this),
-            recipient,
-            _ids,
-            _values,
-            _data
-        );
-
-        return this.onERC1155BatchReceived.selector;
+    ) public override onlyOwner {
+        super.cleanupErc20s(tokens, recipients);
     }
 }
