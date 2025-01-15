@@ -9,6 +9,7 @@ import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 struct WithdrawRequest {
     address token;
     uint256 amount;
+    uint256 nonce;
     address to;
 }
 
@@ -18,12 +19,11 @@ contract CreditMaster is Ownable, EIP712 {
     using SafeTransferLib for address;
     using SignatureCheckerLib for address;
 
+    /// @notice Revert if the allocator address is invalid
     error InvalidAllocator();
 
+    /// @notice Revert if the signature is invalid
     error InvalidSignature();
-
-    /// @notice Revert if native transfer failed
-    error NativeTransferFailed();
 
     /// @notice Emit event when a deposit is made
     event Deposit(address depositor, address token, uint256 value, bytes32 id);
@@ -32,7 +32,9 @@ contract CreditMaster is Ownable, EIP712 {
     event Withdrawal(address token, uint256 amount, address to, bytes32 digest);
 
     bytes32 public constant _WITHDRAW_REQUEST_TYPEHASH =
-        keccak256("WithdrawRequest(address token,uint256 amount,address to)");
+        keccak256(
+            "WithdrawRequest(address token,uint256 amount,uint256 nonce,address to)"
+        );
 
     address public allocator;
 
@@ -99,6 +101,7 @@ contract CreditMaster is Ownable, EIP712 {
                     _WITHDRAW_REQUEST_TYPEHASH,
                     request.token,
                     request.amount,
+                    request.nonce,
                     request.to
                 )
             )
