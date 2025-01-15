@@ -31,11 +31,16 @@ contract CreditMaster is Ownable, EIP712 {
     /// @notice Emit event when a withdrawal is made
     event Withdrawal(address token, uint256 amount, address to, bytes32 digest);
 
+    /// @notice The EIP-712 typehash for the WithdrawRequest struct
     bytes32 public constant _WITHDRAW_REQUEST_TYPEHASH =
         keccak256(
             "WithdrawRequest(address token,uint256 amount,uint256 nonce,address to)"
         );
 
+    /// @notice Mapping from withdrawal request digests to boolean values
+    mapping(bytes32 => bool) public withdrawalRequests;
+
+    /// @notice The allocator address
     address public allocator;
 
     constructor(address _allocator) {
@@ -111,6 +116,14 @@ contract CreditMaster is Ownable, EIP712 {
         if (!allocator.isValidSignatureNow(digest, signature)) {
             revert InvalidSignature();
         }
+
+        // Revert if the withdrawal request has already been used
+        if (withdrawalRequests[digest]) {
+            revert WithdrawalRequestAlreadyUsed();
+        }
+
+        // Mark the withdrawal request as used
+        withdrawalRequests[digest] = true;
 
         // If the token is native, transfer ETH to the recipient
         if (request.token == address(0)) {
