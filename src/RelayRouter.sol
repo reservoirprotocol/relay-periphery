@@ -133,6 +133,34 @@ contract RelayRouter is Multicall3, Tstorish {
         }
     }
 
+    function cleanupExactErc20s(
+        uint256[] calldata amounts,
+        address[] calldata tokens,
+        address[] calldata recipients
+    ) public virtual {
+        // Revert if array lengths do not match
+        if (
+            tokens.length != amounts.length ||
+            amounts.length != recipients.length
+        ) {
+            revert ArrayLengthsMismatch();
+        }
+
+        for (uint256 i; i < tokens.length; i++) {
+            address token = tokens[i];
+            uint256 amount = amounts[i];
+            address recipient = recipients[i];
+
+            // Transfer the token to the recipient address
+            IERC20(token).safeTransfer(recipient, amount);
+        }
+    }
+
+    function cleanupNative(uint256 amount, address recipient) public virtual {
+        // Transfer the native token to the recipient address
+        _send(recipient, amount);
+    }
+
     /// @notice Internal function to handle a permit batch transfer
     /// @param user The address of the user
     /// @param permit The permit details
