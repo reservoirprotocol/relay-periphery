@@ -29,18 +29,12 @@ contract CreditMaster is Ownable, EIP712 {
     event Deposit(address depositor, address token, uint256 value, bytes32 id);
 
     /// @notice Emit event when a withdrawal is made
-    event Withdrawal(address token, uint256 amount, address to);
+    event Withdrawal(address token, uint256 amount, address to, bytes32 digest);
 
     bytes32 public constant _WITHDRAW_REQUEST_TYPEHASH =
         keccak256("WithdrawRequest(address token,uint256 amount,address to)");
 
     address public allocator;
-
-    /// @notice Emit a Deposit event when native tokens are received
-    /// @dev msg.data cannot be reached inside receive() so we do not emit the id as part of the event
-    receive() external payable {
-        emit Deposit(msg.sender, address(0), msg.value, bytes32(0));
-    }
 
     constructor(address _allocator) {
         allocator = _allocator;
@@ -123,7 +117,7 @@ contract CreditMaster is Ownable, EIP712 {
             request.token.safeTransfer(request.to, request.amount);
         }
 
-        emit Withdrawal(request.token, request.amount, request.to);
+        emit Withdrawal(request.token, request.amount, request.to, digest);
     }
 
     function _domainNameAndVersion()
