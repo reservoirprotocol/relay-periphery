@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {Multicall3} from "./utils/Multicall3.sol";
@@ -15,7 +16,7 @@ struct RelayerWitness {
 }
 
 contract RelayRouter is Multicall3, Tstorish {
-    using SafeERC20 for IERC20;
+    using SafeTransferLib for address;
 
     // --- Errors --- //
     /// @notice Revert if this contract is set as the recipient
@@ -47,12 +48,6 @@ contract RelayRouter is Multicall3, Tstorish {
     constructor(address permit2) Tstorish() {
         // Set the address of the Permit2 contract
         PERMIT2 = IPermit2(permit2);
-    }
-
-    /// @notice Withdraw function in case funds get stuck in contract
-    /// @dev Any account can call this function to withdraw the contract's balance
-    function withdraw() public {
-        _send(msg.sender, address(this).balance);
     }
 
     /// @notice Pull user ERC20 tokens through a signed batch permit
@@ -102,12 +97,14 @@ contract RelayRouter is Multicall3, Tstorish {
 
         // Refund any leftover ETH to the sender
         if (address(this).balance > 0) {
-            _send(msg.sender, address(this).balance);
+            msg.sender.safeTransferETH(address(this).balance);
         }
     }
 
     /// @notice Send leftover ERC20 tokens to the refundTo address
-    /// @dev Should be included in the multicall if the router is expecting to receive tokens
+    /// @dev    Should be included in the multicall if the router is expecting to receive tokens
+    ///         This function transfers full balances of each token. To transfer specific amounts,
+    ///         use cleanupExactErc20s
     /// @param tokens The addresses of the ERC20 tokens
     /// @param recipients The addresses to refund the tokens to
     function cleanupErc20s(
@@ -128,8 +125,48 @@ contract RelayRouter is Multicall3, Tstorish {
 
             // Transfer the token to the recipient address
             if (balance > 0) {
-                IERC20(token).safeTransfer(recipient, balance);
+                token.safeTransfer(recipient, balance);
             }
+        }
+    }
+
+    function cleanupExactErc20s(
+        address[] calldata tokens,
+        address[] calldata recipients,
+        uint256[] calldata amounts
+    ) public virtual {
+        // Revert if array lengths do not match
+        if (
+            tokens.length != amounts.length ||
+            amounts.length != recipients.length
+        ) {
+            revert ArrayLengthsMismatch();
+        }
+
+        for (uint256 i; i < tokens.length; i++) {
+            address token = tokens[i];
+            address recipient = recipients[i];
+            uint256 amount = amounts[i];
+
+            // Transfer the token to the recipient address
+            token.safeTransfer(recipient, amount);
+        }
+    }
+
+    /// @notice Send leftover native tokens to the recipient address
+    /// @dev Set amount to 0 to transfer the full balance. Set recipient to address(0) to transfer to msg.sender
+    /// @param amount The amount of native tokens to transfer
+    /// @param recipient The recipient address
+    function cleanupNative(uint256 amount, address recipient) public virtual {
+        // If recipient is address(0), set to msg.sender
+        address recipientAddr = recipient == address(0)
+            ? msg.sender
+            : recipient;
+
+        if (amount == 0) {
+            recipientAddr.safeTransferETH(address(this).balance);
+        } else {
+            recipientAddr.safeTransferETH(amount);
         }
     }
 
@@ -203,21 +240,6 @@ contract RelayRouter is Multicall3, Tstorish {
 
         // Clear the recipient in storage
         _clearTstorish(RECIPIENT_STORAGE_SLOT);
-    }
-
-    function _send(address to, uint256 value) internal {
-        bool success;
-        assembly {
-            // Save gas by avoiding copying the return data to memory.
-            // Provide at most 100k gas to the internal call, which is
-            // more than enough to cover common use-cases of logic for
-            // receiving native tokens (eg. SCW payable fallbacks).
-            success := call(100000, to, value, 0, 0, 0, 0)
-        }
-
-        if (!success) {
-            revert NativeTransferFailed();
-        }
     }
 
     function onERC721Received(

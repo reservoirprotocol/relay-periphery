@@ -9,6 +9,7 @@ import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 struct WithdrawRequest {
     address token;
     uint256 amount;
+    uint256 nonce;
     address to;
 }
 
@@ -18,29 +19,29 @@ contract CreditMaster is Ownable, EIP712 {
     using SafeTransferLib for address;
     using SignatureCheckerLib for address;
 
+    /// @notice Revert if the allocator address is invalid
     error InvalidAllocator();
 
+    /// @notice Revert if the signature is invalid
     error InvalidSignature();
-
-    /// @notice Revert if native transfer failed
-    error NativeTransferFailed();
 
     /// @notice Emit event when a deposit is made
     event Deposit(address depositor, address token, uint256 value, bytes32 id);
 
     /// @notice Emit event when a withdrawal is made
-    event Withdrawal(address token, uint256 amount, address to);
+    event Withdrawal(address token, uint256 amount, address to, bytes32 digest);
 
+    /// @notice The EIP-712 typehash for the WithdrawRequest struct
     bytes32 public constant _WITHDRAW_REQUEST_TYPEHASH =
-        keccak256("WithdrawRequest(address token,uint256 amount,address to)");
+        keccak256(
+            "WithdrawRequest(address token,uint256 amount,uint256 nonce,address to)"
+        );
 
+    /// @notice Mapping from withdrawal request digests to boolean values
+    mapping(bytes32 => bool) public withdrawalRequests;
+
+    /// @notice The allocator address
     address public allocator;
-
-    /// @notice Emit a Deposit event when native tokens are received
-    /// @dev msg.data cannot be reached inside receive() so we do not emit the id as part of the event
-    receive() external payable {
-        emit Deposit(msg.sender, address(0), msg.value, bytes32(0));
-    }
 
     constructor(address _allocator) {
         allocator = _allocator;
@@ -105,6 +106,7 @@ contract CreditMaster is Ownable, EIP712 {
                     _WITHDRAW_REQUEST_TYPEHASH,
                     request.token,
                     request.amount,
+                    request.nonce,
                     request.to
                 )
             )
@@ -115,6 +117,14 @@ contract CreditMaster is Ownable, EIP712 {
             revert InvalidSignature();
         }
 
+        // Revert if the withdrawal request has already been used
+        if (withdrawalRequests[digest]) {
+            revert WithdrawalRequestAlreadyUsed();
+        }
+
+        // Mark the withdrawal request as used
+        withdrawalRequests[digest] = true;
+
         // If the token is native, transfer ETH to the recipient
         if (request.token == address(0)) {
             request.to.safeTransferETH(request.amount);
@@ -123,7 +133,7 @@ contract CreditMaster is Ownable, EIP712 {
             request.token.safeTransfer(request.to, request.amount);
         }
 
-        emit Withdrawal(request.token, request.amount, request.to);
+        emit Withdrawal(request.token, request.amount, request.to, digest);
     }
 
     function _domainNameAndVersion()
