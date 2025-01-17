@@ -112,7 +112,7 @@ contract RelayRouter is Multicall3, Tstorish {
         address[] calldata recipients,
         uint256[] calldata amounts
     ) public virtual {
-        // Revert if array lenggths do not match
+        // Revert if array lengths do not match
         if (
             tokens.length != amounts.length ||
             amounts.length != recipients.length
