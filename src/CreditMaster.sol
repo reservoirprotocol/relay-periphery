@@ -25,6 +25,9 @@ contract CreditMaster is Ownable, EIP712 {
     /// @notice Revert if the signature is invalid
     error InvalidSignature();
 
+    /// @notice Revert if the withdrawal request has already been used
+    error WithdrawalRequestAlreadyUsed();
+
     /// @notice Emit event when a deposit is made
     event Deposit(address from, address token, uint256 amount, bytes32 id);
 

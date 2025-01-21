@@ -101,36 +101,13 @@ contract RelayRouter is Multicall3, Tstorish {
         }
     }
 
-    /// @notice Send leftover ERC20 tokens to the refundTo address
+    /// @notice Send leftover ERC20 tokens to recipients
     /// @dev    Should be included in the multicall if the router is expecting to receive tokens
-    ///         This function transfers full balances of each token. To transfer specific amounts,
-    ///         use cleanupExactErc20s
+    ///         Set amount to 0 to transfer the full balance
     /// @param tokens The addresses of the ERC20 tokens
     /// @param recipients The addresses to refund the tokens to
+    /// @param amounts The amounts to send
     function cleanupErc20s(
-        address[] calldata tokens,
-        address[] calldata recipients
-    ) public virtual {
-        // Revert if array lengths do not match
-        if (tokens.length != recipients.length) {
-            revert ArrayLengthsMismatch();
-        }
-
-        for (uint256 i; i < tokens.length; i++) {
-            address token = tokens[i];
-            address recipient = recipients[i];
-
-            // Check the router's balance for the token
-            uint256 balance = IERC20(token).balanceOf(address(this));
-
-            // Transfer the token to the recipient address
-            if (balance > 0) {
-                token.safeTransfer(recipient, balance);
-            }
-        }
-    }
-
-    function cleanupExactErc20s(
         address[] calldata tokens,
         address[] calldata recipients,
         uint256[] calldata amounts
@@ -146,7 +123,11 @@ contract RelayRouter is Multicall3, Tstorish {
         for (uint256 i; i < tokens.length; i++) {
             address token = tokens[i];
             address recipient = recipients[i];
-            uint256 amount = amounts[i];
+
+            // Get the amount to transfer
+            uint256 amount = amounts[i] == 0
+                ? IERC20(token).balanceOf(address(this))
+                : amounts[i];
 
             // Transfer the token to the recipient address
             token.safeTransfer(recipient, amount);
