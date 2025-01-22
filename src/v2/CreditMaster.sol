@@ -7,10 +7,10 @@ import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 
 struct WithdrawRequest {
-    address to;
     address token;
     uint256 amount;
     uint256 nonce;
+    address to;
 }
 
 /// @title  CreditMaster
@@ -29,15 +29,15 @@ contract CreditMaster is Ownable, EIP712 {
     error WithdrawalRequestAlreadyUsed();
 
     /// @notice Emit event when a deposit is made
-    event Deposit(address from, address token, uint256 amount, bytes32 id);
+    event Deposit(address depositor, address token, uint256 value, bytes32 id);
 
     /// @notice Emit event when a withdrawal is made
-    event Withdrawal(address to, address token, uint256 amount, bytes32 id);
+    event Withdrawal(address token, uint256 amount, address to, bytes32 digest);
 
     /// @notice The EIP-712 typehash for the WithdrawRequest struct
     bytes32 public constant _WITHDRAW_REQUEST_TYPEHASH =
         keccak256(
-            "WithdrawRequest(address to,address token,uint256 amount,uint256 nonce)"
+            "WithdrawRequest(address token,uint256 amount,uint256 nonce,address to)"
         );
 
     /// @notice Mapping from withdrawal request digests to boolean values
@@ -107,10 +107,10 @@ contract CreditMaster is Ownable, EIP712 {
             keccak256(
                 abi.encode(
                     _WITHDRAW_REQUEST_TYPEHASH,
-                    request.to,
                     request.token,
                     request.amount,
-                    request.nonce
+                    request.nonce,
+                    request.to
                 )
             )
         );
@@ -136,7 +136,7 @@ contract CreditMaster is Ownable, EIP712 {
             request.token.safeTransfer(request.to, request.amount);
         }
 
-        emit Withdrawal(request.to, request.token, request.amount, digest);
+        emit Withdrawal(request.token, request.amount, request.to, digest);
     }
 
     function _domainNameAndVersion()
