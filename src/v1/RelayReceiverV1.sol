@@ -18,7 +18,6 @@ contract RelayReceiver {
 
     // --- Events ---
 
-    event FundsForwarded();
     event FundsForwardedWithData(bytes data);
 
     // --- Fields ---
@@ -32,11 +31,6 @@ contract RelayReceiver {
     }
 
     // --- Public methods ---
-
-    receive() external payable {
-        send(SOLVER, msg.value);
-        emit FundsForwarded();
-    }
 
     fallback() external payable {
         send(SOLVER, msg.value);
