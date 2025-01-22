@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import "forge-std/Script.sol";
 
-import {CreditMaster} from "../src/CreditMaster.sol";
+import {CreditMaster} from "../src/v2/CreditMaster.sol";
 
 contract CreditMasterDeployer is Script {
     address allocator;
