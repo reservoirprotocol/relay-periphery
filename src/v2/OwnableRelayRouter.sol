@@ -13,11 +13,6 @@ contract OwnableRelayRouter is RelayRouter, Ownable {
         _initializeOwner(owner);
     }
 
-    /// @notice Withdraw function in case funds get stuck in contract
-    function withdraw() external onlyOwner {
-        _send(msg.sender, address(this).balance);
-    }
-
     /// @notice Pull user ERC20 tokens through a signed batch permit
     ///         and perform an arbitrary multicall. Pass in an empty
     ///         permitSignature to only perform the multicall.
@@ -32,21 +27,10 @@ contract OwnableRelayRouter is RelayRouter, Ownable {
     function permitMulticall(
         address user,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        address[] calldata targets,
-        bytes[] calldata datas,
-        uint256[] calldata values,
-        address refundTo,
+        Call3Value[] calldata calls,
         bytes memory permitSignature
-    ) external payable override onlyOwner returns (bytes[] memory) {
-        super.permitMulticall(
-            user,
-            permit,
-            targets,
-            datas,
-            values,
-            refundTo,
-            permitSignature
-        );
+    ) external payable override onlyOwner returns (Result[] memory returnData) {
+        super.permitMulticall(user, permit, calls, permitSignature);
     }
 
     /// @notice Perform the multicall and send leftover ETH to the refundTo address
@@ -58,12 +42,10 @@ contract OwnableRelayRouter is RelayRouter, Ownable {
     /// @param values The value to send with each call
     /// @param refundTo The address to send any leftover ETH and set as recipient of ERC721/ERC1155 mints
     function multicall(
-        address[] calldata targets,
-        bytes[] calldata datas,
-        uint256[] calldata values,
-        address refundTo
-    ) external payable override onlyOwner returns (bytes[] memory) {
-        super.multicall(targets, datas, values, refundTo);
+        Call3Value[] calldata calls,
+        address nftRecipient
+    ) external payable override onlyOwner returns (Result[] memory returnData) {
+        super.multicall(calls, nftRecipient);
     }
 
     /// @notice Send leftover ERC20 tokens to the refundTo address
@@ -72,8 +54,20 @@ contract OwnableRelayRouter is RelayRouter, Ownable {
     /// @param recipients The addresses to refund the tokens to
     function cleanupErc20s(
         address[] calldata tokens,
-        address[] calldata recipients
+        address[] calldata recipients,
+        uint256[] calldata amounts
     ) public override onlyOwner {
-        super.cleanupErc20s(tokens, recipients);
+        super.cleanupErc20s(tokens, recipients, amounts);
+    }
+
+    /// @notice Send leftover native tokens to the recipient address
+    /// @dev Set amount to 0 to transfer the full balance. Set recipient to address(0) to transfer to msg.sender
+    /// @param amount The amount of native tokens to transfer
+    /// @param recipient The recipient address
+    function cleanupNative(
+        uint256 amount,
+        address recipient
+    ) public override onlyOwner {
+        super.cleanupNative(amount, recipient);
     }
 }

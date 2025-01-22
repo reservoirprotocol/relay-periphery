@@ -9,7 +9,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
-import {Multicall3} from "../utils/Multicall3.sol";
+import {Multicall3} from "./utils/Multicall3.sol";
 
 struct RelayerWitness {
     address relayer;
