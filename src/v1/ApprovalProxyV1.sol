@@ -4,8 +4,7 @@ pragma solidity ^0.8.23;
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IRelayRouter} from "../src/interfaces/IRelayRouter.sol";
-import {Multicall3} from "./utils/Multicall3.sol";
+import {IERC20Router} from "../src/types/interfaces/IERC20Router.sol";
 
 contract ApprovalProxy is Ownable {
     using SafeERC20 for IERC20;
@@ -42,16 +41,25 @@ contract ApprovalProxy is Ownable {
     /// @dev This contract must be approved to transfer msg.sender's tokens to the ERC20Router
     /// @param tokens An array of token addresses to transfer
     /// @param amounts An array of token amounts to transfer
-    /// @param calls The calls to perform
+    /// @param targets An array of target addresses to pass to the multicall
+    /// @param datas An array of calldata to pass to the multicall
+    /// @param values An array of msg values to pass to the multicall
     /// @param refundTo The address to refund any leftover ETH to
     function transferAndMulticall(
         address[] calldata tokens,
         uint256[] calldata amounts,
-        Multicall3.Call3Value[] calldata calls,
+        address[] calldata targets,
+        bytes[] calldata datas,
+        uint256[] calldata values,
         address refundTo
     ) external payable returns (bytes memory) {
         // Revert if array lengths do not match
         if ((tokens.length != amounts.length)) {
+            revert ArrayLengthsMismatch();
+        }
+
+        // Revert if array lengths do not match (split from above for readability)
+        if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
         }
 
@@ -60,12 +68,12 @@ contract ApprovalProxy is Ownable {
             IERC20(tokens[i]).safeTransferFrom(msg.sender, router, amounts[i]);
         }
 
-        // Call multicall on the router
+        // Call delegatecallMulticall on the router. The router will perform a
+        // delegatecall to the Multicaller.
         // @dev msg.sender for the calls to targets will be the router
-        bytes memory data = IRelayRouter(router).multicall{value: msg.value}(
-            calls,
-            refundTo
-        );
+        bytes memory data = IERC20Router(router).delegatecallMulticall{
+            value: msg.value
+        }(targets, datas, values, refundTo);
 
         return data;
     }
