@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
+import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {TrustlessPermit} from "trustlessPermit/TrustlessPermit.sol";
 import {IRelayRouter} from "./interfaces/IRelayRouter.sol";
 import {Multicall3} from "./utils/Multicall3.sol";
@@ -13,19 +14,22 @@ contract ApprovalProxy is Ownable {
     struct Permit {
         address token;
         address owner;
-        address spender;
+        uint256 salt;
         uint256 value;
         uint256 deadline;
         uint8 v;
         bytes32 r;
         bytes32 s;
+        bytes saltSignature;
     }
 
     using SafeERC20 for IERC20;
+    using SignatureCheckerLib for address;
     using TrustlessPermit for address;
 
     error ArrayLengthsMismatch();
     error ERC20TransferFromFailed();
+    error InvalidSignature();
     error NativeTransferFailed();
 
     event RouterUpdated(address newRouter);
@@ -97,6 +101,15 @@ contract ApprovalProxy is Ownable {
     ) external payable returns (bytes memory returnData) {
         for (uint256 i = 0; i < permits.length; i++) {
             Permit memory permit = permits[i];
+
+            // Validate the owner signed the salt
+            bytes32 saltHash = keccak256(abi.encodePacked(permit.salt));
+
+            if (
+                !permit.owner.isValidSignature(saltHash, permit.saltSignature)
+            ) {
+                revert InvalidSignature();
+            }
 
             // Use the permit. Calling `trustlessPermit` allows tx to
             // continue even if permit gets frontrun
