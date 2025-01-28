@@ -66,7 +66,7 @@ contract RelayRouter is Multicall3, Tstorish {
     ) external payable virtual returns (Result[] memory returnData) {
         if (permitSignature.length != 0) {
             // Use permit to transfer tokens from user to router
-            _handlePermitBatch(user, permit, permitSignature);
+            _handleBatchPermit(user, permit, permitSignature);
         }
 
         // Perform the multicall and send leftover to refundTo
@@ -155,7 +155,7 @@ contract RelayRouter is Multicall3, Tstorish {
     /// @param user The address of the user
     /// @param permit The permit details
     /// @param permitSignature The signature for the permit
-    function _handlePermitBatch(
+    function _handleBatchPermit(
         address user,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
         bytes memory permitSignature
