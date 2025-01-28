@@ -106,7 +106,10 @@ contract ApprovalProxy is Ownable {
             bytes32 saltHash = keccak256(abi.encodePacked(permit.salt));
 
             if (
-                !permit.owner.isValidSignature(saltHash, permit.saltSignature)
+                !permit.owner.isValidSignatureNow(
+                    saltHash,
+                    permit.saltSignature
+                )
             ) {
                 revert InvalidSignature();
             }
