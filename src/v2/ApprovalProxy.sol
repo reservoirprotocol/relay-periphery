@@ -8,7 +8,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {TrustlessPermit} from "trustlessPermit/TrustlessPermit.sol";
 import {IRelayRouter} from "./interfaces/IRelayRouter.sol";
-import {Multicall3} from "./utils/Multicall3.sol";
+import {Call3Value, Result} from "./utils/RelayStructs.sol";
 
 contract ApprovalProxy is Ownable {
     struct Permit {
@@ -65,9 +65,9 @@ contract ApprovalProxy is Ownable {
     function transferAndMulticall(
         address[] calldata tokens,
         uint256[] calldata amounts,
-        Multicall3.Call3Value[] calldata calls,
+        Call3Value[] calldata calls,
         address refundTo
-    ) external payable returns (bytes memory) {
+    ) external payable returns (Result[] memory returnData) {
         // Revert if array lengths do not match
         if ((tokens.length != amounts.length)) {
             revert ArrayLengthsMismatch();
@@ -80,12 +80,10 @@ contract ApprovalProxy is Ownable {
 
         // Call multicall on the router
         // @dev msg.sender for the calls to targets will be the router
-        bytes memory data = IRelayRouter(router).multicall{value: msg.value}(
+        returnData = IRelayRouter(router).multicall{value: msg.value}(
             calls,
             refundTo
         );
-
-        return data;
     }
 
     /// @notice Use ERC2612 permit to transfer tokens to ERC20Router and execute multicall in a single tx
@@ -96,9 +94,9 @@ contract ApprovalProxy is Ownable {
     /// @return returnData The return data from the multicall
     function permitTransferAndMulticall(
         Permit[] calldata permits,
-        Multicall3.Call3Value[] calldata calls,
+        Call3Value[] calldata calls,
         address refundTo
-    ) external payable returns (bytes memory returnData) {
+    ) external payable returns (Result[] memory returnData) {
         for (uint256 i = 0; i < permits.length; i++) {
             Permit memory permit = permits[i];
 
