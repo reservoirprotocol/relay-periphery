@@ -7,7 +7,7 @@ import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfe
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {BaseRelayTest} from "./base/BaseRelayTest.sol";
-import {Multicall3} from "../src/v2/utils/Multicall3.sol";
+import {Call3Value, Result} from "../src/v2/utils/RelayStructs.sol";
 import {CreditMaster, WithdrawRequest} from "../src/v2/CreditMaster.sol";
 import {ApprovalProxy} from "../src/v2/ApprovalProxy.sol";
 import {RelayRouter} from "../src/v2/RelayRouter.sol";
@@ -87,14 +87,14 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
             bytes32("test")
         );
 
-        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](2);
-        calls[0] = Multicall3.Call3Value({
+        Call3Value[] memory calls = new Call3Value[](2);
+        calls[0] = Call3Value({
             target: address(erc20_1),
             allowFailure: false,
             value: 0,
             callData: calldata0
         });
-        calls[1] = Multicall3.Call3Value({
+        calls[1] = Call3Value({
             target: address(cm),
             allowFailure: false,
             value: 0,
@@ -145,6 +145,7 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         WithdrawRequest memory request = WithdrawRequest({
             token: address(0),
             amount: amount,
+            nonce: 1,
             to: alice.addr
         });
 
@@ -183,6 +184,7 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         WithdrawRequest memory request = WithdrawRequest({
             token: address(erc20_1),
             amount: amount,
+            nonce: 1,
             to: alice.addr
         });
 
@@ -219,6 +221,7 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         WithdrawRequest memory request = WithdrawRequest({
             token: address(0),
             amount: amount,
+            nonce: 1,
             to: alice.addr
         });
 
