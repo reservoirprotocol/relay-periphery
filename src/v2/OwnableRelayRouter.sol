@@ -4,6 +4,7 @@ pragma solidity ^0.8.25;
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {RelayRouter} from "./RelayRouter.sol";
+import {Multicall3} from "./utils/Multicall3.sol";
 
 /// @title OwnableRelayRouter
 /// @notice An owned RelayRouter that can only be called by the owner
@@ -19,33 +20,40 @@ contract OwnableRelayRouter is RelayRouter, Ownable {
     /// @dev msg.value will persist across all calls in the multicall
     /// @param user The address of the user
     /// @param permit The permit details
-    /// @param targets The addresses of the contracts to call
-    /// @param datas The calldata for each call
-    /// @param values The value to send with each call
-    /// @param refundTo The address to refund any leftover ETH to
+    /// @param calls The calls to perform
     /// @param permitSignature The signature for the permit
     function permitMulticall(
         address user,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        Call3Value[] calldata calls,
+        Multicall3.Call3Value[] calldata calls,
         bytes memory permitSignature
-    ) external payable override onlyOwner returns (Result[] memory returnData) {
-        super.permitMulticall(user, permit, calls, permitSignature);
+    )
+        public
+        payable
+        override
+        onlyOwner
+        returns (Multicall3.Result[] memory returnData)
+    {
+        return super.permitMulticall(user, permit, calls, permitSignature);
     }
 
     /// @notice Perform the multicall and send leftover ETH to the refundTo address
     /// @dev    If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
     ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in refundTo
     ///         If refundTo is address(this), be sure to transfer tokens out of the router as part of the multicall
-    /// @param targets The addresses of the contracts to call
-    /// @param datas The calldata for each call
-    /// @param values The value to send with each call
-    /// @param refundTo The address to send any leftover ETH and set as recipient of ERC721/ERC1155 mints
+    /// @param calls The calls to perform
+    /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     function multicall(
-        Call3Value[] calldata calls,
+        Multicall3.Call3Value[] calldata calls,
         address nftRecipient
-    ) external payable override onlyOwner returns (Result[] memory returnData) {
-        super.multicall(calls, nftRecipient);
+    )
+        public
+        payable
+        override
+        onlyOwner
+        returns (Multicall3.Result[] memory returnData)
+    {
+        return super.multicall(calls, nftRecipient);
     }
 
     /// @notice Send leftover ERC20 tokens to the refundTo address
