@@ -5,6 +5,9 @@ pragma solidity ^0.8.12;
 /// @notice Aggregate results from multiple function calls
 /// @dev Multicall & Multicall2 backwards-compatible
 /// @dev Aggregate methods are marked `payable` to save 24 gas per call
+/// @dev This is a fork of the original Multicall3 contract with function visibility
+/// @dev set to internal. This contract is meant to be inherited by other contracts
+/// @dev that need to perform multicalls.
 /// @author Michael Elliot <mike@makerdao.com>
 /// @author Joshua Levine <joshua@makerdao.com>
 /// @author Nick Johnson <arachnid@notdot.net>
