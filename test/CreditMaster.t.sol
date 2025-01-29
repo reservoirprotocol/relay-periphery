@@ -15,7 +15,7 @@ import {Call3Value, CallRequest, Result} from "../src/v2/utils/RelayStructs.sol"
 
 contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
     event Deposit(address from, address token, uint256 value, bytes32 id);
-    event Withdrawal(address token, uint256 amount, address to);
+    event CallRequestExecuted(bytes32 digest);
 
     error InvalidSignature();
     error Unauthorized();
@@ -26,8 +26,17 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
 
     Account allocator = makeAccountAndDeal("allocator", 1 ether);
 
-    bytes32 public constant _WITHDRAW_REQUEST_TYPEHASH =
-        keccak256("WithdrawRequest(address token,uint256 amount,address to)");
+    /// @notice The EIP-712 typehash for the Call3Value struct
+    bytes32 public constant _CALL3VALUE_TYPEHASH =
+        keccak256(
+            "Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+        );
+
+    /// @notice The EIP-712 typehash for the CallRequest struct
+    bytes32 public constant _CALL_REQUEST_TYPEHASH =
+        keccak256(
+            "CallRequest(Call3Value[] call3Values,uint256 nonce)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+        );
 
     bytes32 public constant DOMAIN_SEPARATOR =
         0x82f0885ae5044a200ee677a7b81601039c097e9ce20f5356020cdf2f472f6a45;
@@ -142,24 +151,21 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         // Run depositNative test
         testDepositEth(amount);
 
-        // Create withdraw request
-        WithdrawRequest memory request = WithdrawRequest({
-            token: address(0),
-            amount: amount,
-            nonce: 1,
-            to: alice.addr
+        Call3Value[] memory calls = new Call3Value[](1);
+        calls[0] = Call3Value({
+            target: alice.addr,
+            allowFailure: false,
+            value: amount,
+            callData: bytes("")
         });
 
-        bytes32 digest = _hashTypedData(
-            keccak256(
-                abi.encode(
-                    _WITHDRAW_REQUEST_TYPEHASH,
-                    request.token,
-                    request.amount,
-                    request.to
-                )
-            )
-        );
+        // Create call request
+        CallRequest memory request = CallRequest({
+            call3Values: calls,
+            nonce: 1
+        });
+
+        bytes32 digest = _hashCallRequest(request);
 
         // Sign request
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(allocator.key, digest);
@@ -168,11 +174,11 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         assertEq(cm.allocator(), allocator.addr);
 
         vm.expectEmit(true, true, true, true, address(cm));
-        emit Withdrawal(address(0), amount, alice.addr);
+        emit CallRequestExecuted(digest);
 
         // Call `withdraw`
         uint256 aliceBalanceBefore = address(alice.addr).balance;
-        cm.withdraw(request, signature);
+        cm.execute(request, signature);
         uint256 aliceBalanceAfter = address(alice.addr).balance;
 
         assertEq(aliceBalanceAfter - aliceBalanceBefore, amount);
@@ -182,23 +188,23 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         testDepositErc20(amount);
 
         // Create withdraw request
-        WithdrawRequest memory request = WithdrawRequest({
-            token: address(erc20_1),
-            amount: amount,
-            nonce: 1,
-            to: alice.addr
+        Call3Value[] memory calls = new Call3Value[](1);
+        calls[0] = Call3Value({
+            target: address(erc20_1),
+            allowFailure: false,
+            value: 0,
+            callData: abi.encodeWithSelector(
+                erc20_1.transfer.selector,
+                alice.addr,
+                amount
+            )
+        });
+        CallRequest memory request = CallRequest({
+            call3Values: calls,
+            nonce: 1
         });
 
-        bytes32 digest = _hashTypedData(
-            keccak256(
-                abi.encode(
-                    _WITHDRAW_REQUEST_TYPEHASH,
-                    request.token,
-                    request.amount,
-                    request.to
-                )
-            )
-        );
+        bytes32 digest = _hashCallRequest(request);
 
         // Sign request
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(allocator.key, digest);
@@ -207,11 +213,11 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         assertEq(cm.allocator(), allocator.addr);
 
         vm.expectEmit(true, true, true, true, address(cm));
-        emit Withdrawal(address(erc20_1), amount, alice.addr);
+        emit CallRequestExecuted(digest);
 
         // Call `withdraw`
         uint256 aliceBalanceBefore = erc20_1.balanceOf(alice.addr);
-        cm.withdraw(request, signature);
+        cm.execute(request, signature);
         uint256 aliceBalanceAfter = erc20_1.balanceOf(alice.addr);
 
         assertEq(aliceBalanceAfter - aliceBalanceBefore, amount);
@@ -219,23 +225,23 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
 
     function testWithdraw__InvalidSignature(uint256 amount) public {
         // Create withdraw request
-        WithdrawRequest memory request = WithdrawRequest({
-            token: address(0),
-            amount: amount,
-            nonce: 1,
-            to: alice.addr
+        Call3Value[] memory calls = new Call3Value[](1);
+        calls[0] = Call3Value({
+            target: address(erc20_1),
+            allowFailure: false,
+            value: 0,
+            callData: abi.encodeWithSelector(
+                erc20_1.transfer.selector,
+                alice.addr,
+                amount
+            )
+        });
+        CallRequest memory request = CallRequest({
+            call3Values: calls,
+            nonce: 1
         });
 
-        bytes32 digest = _hashTypedData(
-            keccak256(
-                abi.encode(
-                    _WITHDRAW_REQUEST_TYPEHASH,
-                    request.token,
-                    request.amount,
-                    request.to
-                )
-            )
-        );
+        bytes32 digest = _hashCallRequest(request);
 
         // Sign request with alice's key
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, digest);
@@ -244,7 +250,7 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         assertEq(cm.allocator(), allocator.addr);
 
         vm.expectRevert(InvalidSignature.selector);
-        cm.withdraw(request, signature);
+        cm.execute(request, signature);
     }
 
     function _domainNameAndVersion()
@@ -255,6 +261,32 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
     {
         name = "CreditMaster";
         version = "1";
+    }
+
+    function _hashCallRequest(
+        CallRequest memory request
+    ) internal view returns (bytes32 digest) {
+        bytes32[] memory call3ValuesHashes = new bytes32[](
+            request.call3Values.length
+        );
+
+        // Hash the call3Values
+        for (uint256 i = 0; i < request.call3Values.length; i++) {
+            call3ValuesHashes[i] = _hashTypedData(
+                keccak256(abi.encode(request.call3Values[i]))
+            );
+        }
+
+        // Get the EIP-712 digest to be signed
+        digest = _hashTypedData(
+            keccak256(
+                abi.encode(
+                    _CALL_REQUEST_TYPEHASH,
+                    keccak256(abi.encodePacked(call3ValuesHashes)),
+                    request.nonce
+                )
+            )
+        );
     }
 
     // Overwrite _hashTypedData to use CreditMaster's domain separator
