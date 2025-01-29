@@ -11,3 +11,4 @@ solmate/=lib/solmate
 @uniswap/v2-core=lib/v2-core
 0x-settler/=lib/0x-settler
 seaport-1.5/=lib/seaport-1.5
+trustlessPermit/=lib/trustlessPermit

@@ -12,9 +12,9 @@ import {Permit2} from "permit2-relay/src/Permit2.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {PermitSignature} from "permit2-relay/test/utils/PermitSignature.sol";
-import {ApprovalProxy} from "../src/ApprovalProxy.sol";
-import {RelayRouter} from "../src/RelayRouter.sol";
-import {Multicall3} from "../src/utils/Multicall3.sol";
+import {ApprovalProxy} from "../src/v2/ApprovalProxy.sol";
+import {RelayRouter} from "../src/v2/RelayRouter.sol";
+import {Multicall3} from "../src/v2/utils/Multicall3.sol";
 import {NoOpERC20} from "./mocks/NoOpERC20.sol";
 import {TestERC721} from "./mocks/TestERC721.sol";
 import {TestERC721_ERC20PaymentToken} from "./mocks/TestERC721_ERC20PaymentToken.sol";
@@ -387,8 +387,9 @@ contract RelayRouterTest is Test, BaseRelayTest {
 
         address[] memory recipients = new address[](1);
         recipients[0] = alice.addr;
-
-        router.cleanupErc20s(tokens, recipients);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 0;
+        router.cleanupErc20s(tokens, recipients, amounts);
 
         uint256 aliceUSDCBalanceAfterCleanup = IERC20(USDC).balanceOf(
             alice.addr

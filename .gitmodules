@@ -37,3 +37,6 @@
 [submodule "lib/seaport-1.5"]
 	path = lib/seaport-1.5
 	url = https://github.com/ProjectOpenSea/seaport
+[submodule "lib/trustlessPermit"]
+	path = lib/trustlessPermit
+	url = https://github.com/trust1995/trustlessPermit
