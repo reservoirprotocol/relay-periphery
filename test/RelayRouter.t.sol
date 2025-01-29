@@ -14,7 +14,7 @@ import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {PermitSignature} from "permit2-relay/test/utils/PermitSignature.sol";
 import {ApprovalProxy} from "../src/v2/ApprovalProxy.sol";
 import {RelayRouter} from "../src/v2/RelayRouter.sol";
-import {Call3Value, Result} from "../src/v2/utils/RelayStructs.sol";
+import {Multicall3} from "../src/v2/utils/Multicall3.sol";
 import {NoOpERC20} from "./mocks/NoOpERC20.sol";
 import {TestERC721} from "./mocks/TestERC721.sol";
 import {TestERC721_ERC20PaymentToken} from "./mocks/TestERC721_ERC20PaymentToken.sol";
@@ -193,26 +193,26 @@ contract RelayRouterTest is Test, BaseRelayTest {
             1 ether
         );
 
-        Call3Value[] memory calls = new Call3Value[](4);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](4);
+        calls[0] = Multicall3.Call3Value({
             target: address(erc20_1),
             allowFailure: false,
             value: 0,
             callData: calldata1
         });
-        calls[1] = Call3Value({
+        calls[1] = Multicall3.Call3Value({
             target: address(erc20_2),
             allowFailure: false,
             value: 0,
             callData: calldata2
         });
-        calls[2] = Call3Value({
+        calls[2] = Multicall3.Call3Value({
             target: address(erc20_3),
             allowFailure: false,
             value: 0,
             callData: calldata3
         });
-        calls[3] = Call3Value({
+        calls[3] = Multicall3.Call3Value({
             target: address(erc20_1),
             allowFailure: false,
             value: 0,
@@ -249,8 +249,8 @@ contract RelayRouterTest is Test, BaseRelayTest {
             block.timestamp
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: ROUTER_V2,
             allowFailure: false,
             value: 1 ether,
@@ -290,14 +290,14 @@ contract RelayRouterTest is Test, BaseRelayTest {
             block.timestamp
         );
 
-        Call3Value[] memory calls = new Call3Value[](2);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](2);
+        calls[0] = Multicall3.Call3Value({
             target: ROUTER_V2,
             allowFailure: false,
             value: 1 ether,
             callData: calldata1
         });
-        calls[1] = Call3Value({
+        calls[1] = Multicall3.Call3Value({
             target: ROUTER_V2,
             allowFailure: false,
             value: 1 ether,
@@ -345,20 +345,20 @@ contract RelayRouterTest is Test, BaseRelayTest {
             10
         );
 
-        Call3Value[] memory calls = new Call3Value[](3);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](3);
+        calls[0] = Multicall3.Call3Value({
             target: ROUTER_V2,
             allowFailure: false,
             value: 1 ether,
             callData: calldata1
         });
-        calls[1] = Call3Value({
+        calls[1] = Multicall3.Call3Value({
             target: USDC,
             allowFailure: false,
             value: 0,
             callData: calldata2
         });
-        calls[2] = Call3Value({
+        calls[2] = Multicall3.Call3Value({
             target: address(nft),
             allowFailure: false,
             value: 0,
@@ -414,8 +414,8 @@ contract RelayRouterTest is Test, BaseRelayTest {
             block.timestamp
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: ROUTER_V2,
             allowFailure: false,
             value: 1 ether,
@@ -452,8 +452,8 @@ contract RelayRouterTest is Test, BaseRelayTest {
             1 ether
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: address(erc20_1),
             allowFailure: false,
             value: 0,
@@ -482,8 +482,8 @@ contract RelayRouterTest is Test, BaseRelayTest {
             1 ether
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: address(erc20_1),
             allowFailure: false,
             value: 0,
@@ -496,7 +496,7 @@ contract RelayRouterTest is Test, BaseRelayTest {
 
         assertEq(erc20_1.balanceOf(address(router)), 0);
 
-        calls[0] = Call3Value({
+        calls[0] = Multicall3.Call3Value({
             target: address(erc20_1),
             allowFailure: false,
             value: 0,
@@ -548,14 +548,14 @@ contract RelayRouterTest is Test, BaseRelayTest {
             block.timestamp
         );
 
-        Call3Value[] memory calls = new Call3Value[](2);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](2);
+        calls[0] = Multicall3.Call3Value({
             target: USDC,
             allowFailure: false,
             value: 0,
             callData: calldata1
         });
-        calls[1] = Call3Value({
+        calls[1] = Multicall3.Call3Value({
             target: ROUTER_V2,
             allowFailure: false,
             value: 0,
@@ -608,20 +608,20 @@ contract RelayRouterTest is Test, BaseRelayTest {
             block.timestamp
         );
 
-        Call3Value[] memory calls = new Call3Value[](3);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](3);
+        calls[0] = Multicall3.Call3Value({
             target: USDC,
             allowFailure: false,
             value: 0,
             callData: calldata1
         });
-        calls[1] = Call3Value({
+        calls[1] = Multicall3.Call3Value({
             target: address(allowanceHolder),
             allowFailure: false,
             value: 0,
             callData: calldata2
         });
-        calls[2] = Call3Value({
+        calls[2] = Multicall3.Call3Value({
             target: ROUTER_V2,
             allowFailure: false,
             value: 0,
@@ -666,8 +666,8 @@ contract RelayRouterTest is Test, BaseRelayTest {
             1 ether
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: address(noOpERC20),
             allowFailure: false,
             value: 0,
@@ -711,8 +711,8 @@ contract RelayRouterTest is Test, BaseRelayTest {
             1 ether
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: address(erc20_1),
             allowFailure: false,
             value: 0,
@@ -740,8 +740,8 @@ contract RelayRouterTest is Test, BaseRelayTest {
             recipients
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: address(router),
             allowFailure: false,
             value: 0,
@@ -773,8 +773,8 @@ contract RelayRouterTest is Test, BaseRelayTest {
             recipients
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: address(router),
             allowFailure: false,
             value: 0,
@@ -801,8 +801,8 @@ contract RelayRouterTest is Test, BaseRelayTest {
             1
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: address(erc721),
             allowFailure: false,
             value: 0,
@@ -826,14 +826,14 @@ contract RelayRouterTest is Test, BaseRelayTest {
             1
         );
 
-        Call3Value[] memory calls = new Call3Value[](2);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](2);
+        calls[0] = Multicall3.Call3Value({
             target: address(erc721),
             allowFailure: false,
             value: 0,
             callData: calldata1
         });
-        calls[1] = Call3Value({
+        calls[1] = Multicall3.Call3Value({
             target: address(erc721),
             allowFailure: false,
             value: 0,
@@ -857,8 +857,8 @@ contract RelayRouterTest is Test, BaseRelayTest {
             1
         );
 
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
+        Multicall3.Call3Value[] memory calls = new Multicall3.Call3Value[](1);
+        calls[0] = Multicall3.Call3Value({
             target: address(erc721),
             allowFailure: false,
             value: 0,
