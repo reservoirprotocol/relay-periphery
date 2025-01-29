@@ -6,14 +6,11 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {Multicall3} from "./utils/Multicall3.sol";
+import {Call3Value, CallRequest, Result} from "./utils/RelayStructs.sol";
 
 /// @title  CreditMaster
 /// @author Reservoir
 contract CreditMaster is Multicall3, Ownable, EIP712 {
-    struct CallRequest {
-        Multicall3.Call3Value[] call3Values;
-        uint256 nonce;
-    }
     using SafeTransferLib for address;
     using SignatureCheckerLib for address;
 
@@ -100,23 +97,26 @@ contract CreditMaster is Multicall3, Ownable, EIP712 {
     }
 
     /// @notice Execute a set of calls with a signed Calls struct from the Allocator
-    /// @param calls The Calls struct
+    /// @param request The CallRequest struct
     /// @param signature The signature from the Allocator
-    function execute(Calls calldata calls, bytes memory signature) external {
+    function execute(
+        CallRequest calldata request,
+        bytes memory signature
+    ) external {
         bytes32[] memory call3ValuesHashes = new bytes32[](
-            calls.call3Values.length
+            request.call3Values.length
         );
 
         // Hash the call3Values
-        for (uint256 i = 0; i < calls.call3Values.length; i++) {
+        for (uint256 i = 0; i < request.call3Values.length; i++) {
             call3ValuesHashes[i] = _hashTypedData(
                 keccak256(
                     abi.encode(
                         _CALL3VALUE_TYPEHASH,
-                        calls.call3Values[i].target,
-                        calls.call3Values[i].allowFailure,
-                        calls.call3Values[i].value,
-                        calls.call3Values[i].callData
+                        request.call3Values[i].target,
+                        request.call3Values[i].allowFailure,
+                        request.call3Values[i].value,
+                        request.call3Values[i].callData
                     )
                 )
             );
@@ -128,7 +128,7 @@ contract CreditMaster is Multicall3, Ownable, EIP712 {
                 abi.encode(
                     _CALLS_TYPEHASH,
                     keccak256(abi.encodePacked(call3ValuesHashes)),
-                    calls.nonce
+                    request.nonce
                 )
             )
         );
@@ -147,7 +147,7 @@ contract CreditMaster is Multicall3, Ownable, EIP712 {
         callRequests[digest] = true;
 
         // Execute the calls
-        _aggregate3Value(calls.call3Values);
+        _aggregate3Value(request.call3Values);
 
         emit CallRequestExecuted(digest);
     }

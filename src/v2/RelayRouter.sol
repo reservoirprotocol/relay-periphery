@@ -10,7 +10,7 @@ import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {Multicall3} from "./utils/Multicall3.sol";
-
+import {Call, Call3, Call3Value, Result} from "./utils/RelayStructs.sol";
 struct RelayerWitness {
     address relayer;
 }
@@ -61,9 +61,9 @@ contract RelayRouter is Multicall3, Tstorish {
     function permitMulticall(
         address user,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        Multicall3.Call3Value[] calldata calls,
+        Call3Value[] calldata calls,
         bytes memory permitSignature
-    ) public payable virtual returns (Multicall3.Result[] memory returnData) {
+    ) public payable virtual returns (Result[] memory returnData) {
         if (permitSignature.length != 0) {
             // Use permit to transfer tokens from user to router
             _handleBatchPermit(user, permit, permitSignature);
@@ -81,9 +81,9 @@ contract RelayRouter is Multicall3, Tstorish {
     /// @param calls The calls to perform
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     function multicall(
-        Multicall3.Call3Value[] calldata calls,
+        Call3Value[] calldata calls,
         address nftRecipient
-    ) public payable virtual returns (Multicall3.Result[] memory returnData) {
+    ) public payable virtual returns (Result[] memory returnData) {
         // Set the NFT recipient if provided
         if (nftRecipient != address(0)) {
             _setRecipient(nftRecipient);
