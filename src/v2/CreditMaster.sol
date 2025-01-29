@@ -35,10 +35,10 @@ contract CreditMaster is Multicall3, Ownable, EIP712 {
             "Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
 
-    /// @notice The EIP-712 typehash for the Calls struct
-    bytes32 public constant _CALLS_TYPEHASH =
+    /// @notice The EIP-712 typehash for the CallRequest struct
+    bytes32 public constant _CALL_REQUEST_TYPEHASH =
         keccak256(
-            "Calls(Call3Value[] calls,uint256 nonce)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+            "CallRequest(Call3Value[] call3Values,uint256 nonce)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
 
     /// @notice Mapping from withdrawal request digests to boolean values
@@ -103,35 +103,7 @@ contract CreditMaster is Multicall3, Ownable, EIP712 {
         CallRequest calldata request,
         bytes memory signature
     ) external {
-        bytes32[] memory call3ValuesHashes = new bytes32[](
-            request.call3Values.length
-        );
-
-        // Hash the call3Values
-        for (uint256 i = 0; i < request.call3Values.length; i++) {
-            call3ValuesHashes[i] = _hashTypedData(
-                keccak256(
-                    abi.encode(
-                        _CALL3VALUE_TYPEHASH,
-                        request.call3Values[i].target,
-                        request.call3Values[i].allowFailure,
-                        request.call3Values[i].value,
-                        request.call3Values[i].callData
-                    )
-                )
-            );
-        }
-
-        // Get the EIP-712 digest to be signed
-        bytes32 digest = _hashTypedData(
-            keccak256(
-                abi.encode(
-                    _CALLS_TYPEHASH,
-                    keccak256(abi.encodePacked(call3ValuesHashes)),
-                    request.nonce
-                )
-            )
-        );
+        bytes32 digest = _hashCallRequest(request);
 
         // Validate the allocator signature
         if (!allocator.isValidSignatureNow(digest, signature)) {
@@ -150,6 +122,32 @@ contract CreditMaster is Multicall3, Ownable, EIP712 {
         _aggregate3Value(request.call3Values);
 
         emit CallRequestExecuted(digest);
+    }
+
+    function _hashCallRequest(
+        CallRequest calldata request
+    ) internal view returns (bytes32 digest) {
+        bytes32[] memory call3ValuesHashes = new bytes32[](
+            request.call3Values.length
+        );
+
+        // Hash the call3Values
+        for (uint256 i = 0; i < request.call3Values.length; i++) {
+            call3ValuesHashes[i] = _hashTypedData(
+                keccak256(abi.encode(request.call3Values[i]))
+            );
+        }
+
+        // Get the EIP-712 digest to be signed
+        digest = _hashTypedData(
+            keccak256(
+                abi.encode(
+                    _CALL_REQUEST_TYPEHASH,
+                    keccak256(abi.encodePacked(call3ValuesHashes)),
+                    request.nonce
+                )
+            )
+        );
     }
 
     function _domainNameAndVersion()
