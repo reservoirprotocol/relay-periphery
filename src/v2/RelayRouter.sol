@@ -61,9 +61,9 @@ contract RelayRouter is Multicall3, Tstorish {
     function permitMulticall(
         address user,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        Call3Value[] calldata calls,
+        Multicall3.Call3Value[] calldata calls,
         bytes memory permitSignature
-    ) external payable virtual returns (Result[] memory returnData) {
+    ) public payable virtual returns (Multicall3.Result[] memory returnData) {
         if (permitSignature.length != 0) {
             // Use permit to transfer tokens from user to router
             _handleBatchPermit(user, permit, permitSignature);
@@ -81,9 +81,9 @@ contract RelayRouter is Multicall3, Tstorish {
     /// @param calls The calls to perform
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     function multicall(
-        Call3Value[] calldata calls,
+        Multicall3.Call3Value[] calldata calls,
         address nftRecipient
-    ) external payable virtual returns (Result[] memory returnData) {
+    ) public payable virtual returns (Multicall3.Result[] memory returnData) {
         // Set the NFT recipient if provided
         if (nftRecipient != address(0)) {
             _setRecipient(nftRecipient);
