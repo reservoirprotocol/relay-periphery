@@ -7,7 +7,6 @@ import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {IMulticall3} from "./interfaces/IMulticall3.sol";
 
-import {IRelayRouter} from "./interfaces/IRelayRouter.sol";
 import {Call3Value, CallRequest, Result} from "./utils/RelayStructs.sol";
 
 /// @title  CreditMaster
@@ -52,11 +51,8 @@ contract CreditMaster is Ownable, EIP712 {
     /// @notice The allocator address
     address public allocator;
 
-    address public router;
-
-    constructor(address _allocator, address _router) {
+    constructor(address _allocator) {
         allocator = _allocator;
-        router = _router;
         _initializeOwner(msg.sender);
     }
 
@@ -68,14 +64,6 @@ contract CreditMaster is Ownable, EIP712 {
         }
         allocator = _allocator;
     }
-
-    // function setMulticall3(address _multicall3) external onlyOwner {
-    //     if (_multicall3 == address(0)) {
-    //         revert AddressCannotBeZero();
-    //     }
-
-    //     multicall3 = _multicall3;
-    // }
 
     /// @notice Deposit native tokens to the contract and emit a Deposit event
     /// @param depositor The address of the depositor to credit. Set to address(0) to credit msg.sender
