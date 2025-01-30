@@ -5,23 +5,28 @@ import {EIP712} from "solady/src/utils/EIP712.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
-import {Multicall3} from "./utils/Multicall3.sol";
+import {IMulticall3} from "./interfaces/IMulticall3.sol";
+
+import {IRelayRouter} from "./interfaces/IRelayRouter.sol";
 import {Call3Value, CallRequest, Result} from "./utils/RelayStructs.sol";
 
 /// @title  CreditMaster
 /// @author Reservoir
-contract CreditMaster is Multicall3, Ownable, EIP712 {
+contract CreditMaster is Ownable, EIP712 {
     using SafeTransferLib for address;
     using SignatureCheckerLib for address;
 
-    /// @notice Revert if the allocator address is invalid
-    error InvalidAllocator();
+    /// @notice Revert if the address is zero
+    error AddressCannotBeZero();
 
     /// @notice Revert if the signature is invalid
     error InvalidSignature();
 
     /// @notice Revert if the call request has already been used
     error CallRequestAlreadyUsed();
+
+    /// @notice Revert if a call fails
+    error CallFailed(bytes returnData);
 
     /// @notice Emit event when a deposit is made
     event Deposit(address depositor, address token, uint256 value, bytes32 id);
@@ -47,8 +52,11 @@ contract CreditMaster is Multicall3, Ownable, EIP712 {
     /// @notice The allocator address
     address public allocator;
 
-    constructor(address _allocator) {
+    address public router;
+
+    constructor(address _allocator, address _router) {
         allocator = _allocator;
+        router = _router;
         _initializeOwner(msg.sender);
     }
 
@@ -56,10 +64,18 @@ contract CreditMaster is Multicall3, Ownable, EIP712 {
     /// @param _allocator The new allocator address
     function setAllocator(address _allocator) external onlyOwner {
         if (_allocator == address(0)) {
-            revert InvalidAllocator();
+            revert AddressCannotBeZero();
         }
         allocator = _allocator;
     }
+
+    // function setMulticall3(address _multicall3) external onlyOwner {
+    //     if (_multicall3 == address(0)) {
+    //         revert AddressCannotBeZero();
+    //     }
+
+    //     multicall3 = _multicall3;
+    // }
 
     /// @notice Deposit native tokens to the contract and emit a Deposit event
     /// @param depositor The address of the depositor to credit. Set to address(0) to credit msg.sender
@@ -102,7 +118,7 @@ contract CreditMaster is Multicall3, Ownable, EIP712 {
     function execute(
         CallRequest calldata request,
         bytes memory signature
-    ) external {
+    ) external returns (Result[] memory returnData) {
         bytes32 digest = _hashCallRequest(request);
 
         // Validate the allocator signature
@@ -119,9 +135,29 @@ contract CreditMaster is Multicall3, Ownable, EIP712 {
         callRequests[digest] = true;
 
         // Execute the calls
-        _aggregate3Value(request.call3Values);
+        returnData = _executeCalls(request.call3Values);
 
         emit CallRequestExecuted(digest);
+    }
+
+    function _executeCalls(
+        Call3Value[] calldata calls
+    ) internal returns (Result[] memory returnData) {
+        unchecked {
+            uint256 length = calls.length;
+            returnData = new Result[](length);
+            for (uint256 i; i < length; i++) {
+                Call3Value memory c = calls[i];
+                Result memory result = returnData[i];
+
+                (result.success, result.returnData) = c.target.call{
+                    value: c.value
+                }(c.callData);
+                if (!result.success && !c.allowFailure) {
+                    revert CallFailed(result.returnData);
+                }
+            }
+        }
     }
 
     function _hashCallRequest(
