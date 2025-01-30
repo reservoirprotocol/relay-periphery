@@ -7,9 +7,11 @@ import {CreditMaster} from "../src/v2/CreditMaster.sol";
 
 contract CreditMasterDeployer is Script {
     address allocator;
+    address multicall3;
 
     function setUp() public {
         allocator = 0xf70da97812CB96acDF810712Aa562db8dfA3dbEF;
+        multicall3 = 0xcA11bde05977b3631167028862bE2a173976CA11;
     }
 
     function run() public {

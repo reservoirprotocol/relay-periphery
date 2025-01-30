@@ -6,12 +6,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 
-struct WithdrawRequest {
-    address token;
-    uint256 amount;
-    uint256 nonce;
-    address to;
-}
+import {Call3Value, CallRequest, Result} from "./utils/RelayStructs.sol";
 
 /// @title  CreditMaster
 /// @author Reservoir
@@ -19,29 +14,38 @@ contract CreditMaster is Ownable, EIP712 {
     using SafeTransferLib for address;
     using SignatureCheckerLib for address;
 
-    /// @notice Revert if the allocator address is invalid
-    error InvalidAllocator();
+    /// @notice Revert if the address is zero
+    error AddressCannotBeZero();
 
     /// @notice Revert if the signature is invalid
     error InvalidSignature();
 
-    /// @notice Revert if the withdrawal request has already been used
-    error WithdrawalRequestAlreadyUsed();
+    /// @notice Revert if the call request has already been used
+    error CallRequestAlreadyUsed();
+
+    /// @notice Revert if a call fails
+    error CallFailed(bytes returnData);
 
     /// @notice Emit event when a deposit is made
     event Deposit(address depositor, address token, uint256 value, bytes32 id);
 
-    /// @notice Emit event when a withdrawal is made
-    event Withdrawal(address token, uint256 amount, address to, bytes32 digest);
+    /// @notice Emit event when a call request is executed
+    event CallRequestExecuted(bytes32 digest);
 
-    /// @notice The EIP-712 typehash for the WithdrawRequest struct
-    bytes32 public constant _WITHDRAW_REQUEST_TYPEHASH =
+    /// @notice The EIP-712 typehash for the Call3Value struct
+    bytes32 public constant _CALL3VALUE_TYPEHASH =
         keccak256(
-            "WithdrawRequest(address token,uint256 amount,uint256 nonce,address to)"
+            "Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+        );
+
+    /// @notice The EIP-712 typehash for the CallRequest struct
+    bytes32 public constant _CALL_REQUEST_TYPEHASH =
+        keccak256(
+            "CallRequest(Call3Value[] call3Values,uint256 nonce)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
 
     /// @notice Mapping from withdrawal request digests to boolean values
-    mapping(bytes32 => bool) public withdrawalRequests;
+    mapping(bytes32 => bool) public callRequests;
 
     /// @notice The allocator address
     address public allocator;
@@ -55,7 +59,7 @@ contract CreditMaster is Ownable, EIP712 {
     /// @param _allocator The new allocator address
     function setAllocator(address _allocator) external onlyOwner {
         if (_allocator == address(0)) {
-            revert InvalidAllocator();
+            revert AddressCannotBeZero();
         }
         allocator = _allocator;
     }
@@ -95,25 +99,14 @@ contract CreditMaster is Ownable, EIP712 {
         emit Deposit(depositorAddress, token, amount, id);
     }
 
-    /// @notice Withdraw tokens from the contract with a signed WithdrawRequest from the Allocator
-    /// @param request The WithdrawRequest struct
+    /// @notice Execute a set of calls with a signed Calls struct from the Allocator
+    /// @param request The CallRequest struct
     /// @param signature The signature from the Allocator
-    function withdraw(
-        WithdrawRequest calldata request,
+    function execute(
+        CallRequest calldata request,
         bytes memory signature
-    ) external {
-        // Get the EIP-712 digest to be signed
-        bytes32 digest = _hashTypedData(
-            keccak256(
-                abi.encode(
-                    _WITHDRAW_REQUEST_TYPEHASH,
-                    request.token,
-                    request.amount,
-                    request.nonce,
-                    request.to
-                )
-            )
-        );
+    ) external returns (Result[] memory returnData) {
+        bytes32 digest = _hashCallRequest(request);
 
         // Validate the allocator signature
         if (!allocator.isValidSignatureNow(digest, signature)) {
@@ -121,22 +114,70 @@ contract CreditMaster is Ownable, EIP712 {
         }
 
         // Revert if the withdrawal request has already been used
-        if (withdrawalRequests[digest]) {
-            revert WithdrawalRequestAlreadyUsed();
+        if (callRequests[digest]) {
+            revert CallRequestAlreadyUsed();
         }
 
         // Mark the withdrawal request as used
-        withdrawalRequests[digest] = true;
+        callRequests[digest] = true;
 
-        // If the token is native, transfer ETH to the recipient
-        if (request.token == address(0)) {
-            request.to.safeTransferETH(request.amount);
-        } else {
-            // Transfer the ERC20 tokens to the recipient
-            request.token.safeTransfer(request.to, request.amount);
+        // Execute the calls
+        returnData = _executeCalls(request.call3Values);
+
+        emit CallRequestExecuted(digest);
+    }
+
+    function _executeCalls(
+        Call3Value[] calldata calls
+    ) internal returns (Result[] memory returnData) {
+        unchecked {
+            uint256 length = calls.length;
+            returnData = new Result[](length);
+            for (uint256 i; i < length; i++) {
+                Call3Value memory c = calls[i];
+                Result memory result = returnData[i];
+
+                (result.success, result.returnData) = c.target.call{
+                    value: c.value
+                }(c.callData);
+                if (!result.success && !c.allowFailure) {
+                    revert CallFailed(result.returnData);
+                }
+            }
+        }
+    }
+
+    function _hashCallRequest(
+        CallRequest calldata request
+    ) internal returns (bytes32 digest) {
+        bytes32[] memory call3ValuesHashes = new bytes32[](
+            request.call3Values.length
+        );
+
+        // Hash the call3Values
+        for (uint256 i = 0; i < request.call3Values.length; i++) {
+            bytes32 call3ValueHash = keccak256(
+                abi.encode(
+                    _CALL3VALUE_TYPEHASH,
+                    request.call3Values[i].target,
+                    request.call3Values[i].allowFailure,
+                    request.call3Values[i].value,
+                    request.call3Values[i].callData
+                )
+            );
+            call3ValuesHashes[i] = call3ValueHash;
         }
 
-        emit Withdrawal(request.token, request.amount, request.to, digest);
+        // Get the EIP-712 digest to be signed
+        digest = _hashTypedData(
+            keccak256(
+                abi.encode(
+                    _CALL_REQUEST_TYPEHASH,
+                    keccak256(abi.encodePacked(call3ValuesHashes)),
+                    request.nonce
+                )
+            )
+        );
     }
 
     function _domainNameAndVersion()

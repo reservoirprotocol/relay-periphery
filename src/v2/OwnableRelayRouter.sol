@@ -4,7 +4,7 @@ pragma solidity ^0.8.25;
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {RelayRouter} from "./RelayRouter.sol";
-import {Multicall3} from "./utils/Multicall3.sol";
+import {Call3Value, Result} from "./utils/RelayStructs.sol";
 
 /// @title OwnableRelayRouter
 /// @notice An owned RelayRouter that can only be called by the owner
@@ -25,15 +25,9 @@ contract OwnableRelayRouter is RelayRouter, Ownable {
     function permitMulticall(
         address user,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        Multicall3.Call3Value[] calldata calls,
+        Call3Value[] calldata calls,
         bytes memory permitSignature
-    )
-        public
-        payable
-        override
-        onlyOwner
-        returns (Multicall3.Result[] memory returnData)
-    {
+    ) public payable override onlyOwner returns (Result[] memory returnData) {
         return super.permitMulticall(user, permit, calls, permitSignature);
     }
 
@@ -44,15 +38,9 @@ contract OwnableRelayRouter is RelayRouter, Ownable {
     /// @param calls The calls to perform
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     function multicall(
-        Multicall3.Call3Value[] calldata calls,
+        Call3Value[] calldata calls,
         address nftRecipient
-    )
-        public
-        payable
-        override
-        onlyOwner
-        returns (Multicall3.Result[] memory returnData)
-    {
+    ) public payable override onlyOwner returns (Result[] memory returnData) {
         return super.multicall(calls, nftRecipient);
     }
 
