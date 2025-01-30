@@ -19,7 +19,7 @@ contract CreditMasterDeployer is Script {
         vm.startBroadcast(vm.envUint("DEPLOYER_PRIVATE_KEY"));
 
         // Deploy CreditMaster
-        CreditMaster cm = new CreditMaster(allocator, multicall3);
+        CreditMaster cm = new CreditMaster(allocator);
 
         assert(cm.allocator() == allocator);
         assert(cm.owner() == 0xf3d63166F0Ca56C3c1A3508FcE03Ff0Cf3Fb691e);

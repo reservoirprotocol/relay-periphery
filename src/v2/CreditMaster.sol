@@ -150,16 +150,23 @@ contract CreditMaster is Ownable, EIP712 {
 
     function _hashCallRequest(
         CallRequest calldata request
-    ) internal view returns (bytes32 digest) {
+    ) internal returns (bytes32 digest) {
         bytes32[] memory call3ValuesHashes = new bytes32[](
             request.call3Values.length
         );
 
         // Hash the call3Values
         for (uint256 i = 0; i < request.call3Values.length; i++) {
-            call3ValuesHashes[i] = _hashTypedData(
-                keccak256(abi.encode(request.call3Values[i]))
+            bytes32 call3ValueHash = keccak256(
+                abi.encode(
+                    _CALL3VALUE_TYPEHASH,
+                    request.call3Values[i].target,
+                    request.call3Values[i].allowFailure,
+                    request.call3Values[i].value,
+                    request.call3Values[i].callData
+                )
             );
+            call3ValuesHashes[i] = call3ValueHash;
         }
 
         // Get the EIP-712 digest to be signed
