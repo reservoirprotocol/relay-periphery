@@ -73,8 +73,7 @@ contract RelayRouter is Multicall3, Tstorish {
         returnData = _aggregate3Value(calls);
     }
 
-    /// @notice Call the Multicaller with a delegatecall to set the ERC20Router as the
-    ///         sender of the calls to the targets.
+    /// @notice Execute a multicall with the RelayRouter as msg.sender.
     /// @dev    If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
     ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in recipient
     ///         Be sure to transfer ERC20s or ETH out of the router as part of the multicall
