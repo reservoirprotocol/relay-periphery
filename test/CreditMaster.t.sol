@@ -150,7 +150,7 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         assertEq(cm.allocator(), newAllocator.addr);
     }
 
-    function testWithdraw__Native(uint256 amount) public {
+    function testExecute__WithdrawNative(uint256 amount) public {
         // Run depositNative test
         testDepositEth(amount);
 
@@ -190,7 +190,7 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         assertEq(aliceBalanceAfter - aliceBalanceBefore, amount);
     }
 
-    function testWithdraw__ERC20(uint96 amount) public {
+    function testExecute__WithdrawERC20(uint96 amount) public {
         testDepositErc20(amount);
 
         // Create withdraw request
@@ -229,7 +229,9 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         assertEq(aliceBalanceAfter - aliceBalanceBefore, amount);
     }
 
-    function testWithdraw__InvalidSignature(uint256 amount) public {
+    function testExecute__WithdrawNative__RevertInvalidSignature(
+        uint256 amount
+    ) public {
         // Create withdraw request
         Call3Value[] memory calls = new Call3Value[](1);
         calls[0] = Call3Value({
