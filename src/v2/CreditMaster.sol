@@ -29,8 +29,8 @@ contract CreditMaster is Ownable, EIP712 {
     /// @notice Emit event when a deposit is made
     event Deposit(address depositor, address token, uint256 value, bytes32 id);
 
-    /// @notice Emit event when a call request is executed
-    event CallRequestExecuted(bytes32 digest);
+    /// @notice Emit event when a call is executed
+    event CallExecuted(bytes32 digest, address target, bool success);
 
     /// @notice The EIP-712 typehash for the Call3Value struct
     bytes32 public constant _CALL3VALUE_TYPEHASH =
@@ -44,7 +44,7 @@ contract CreditMaster is Ownable, EIP712 {
             "CallRequest(Call3Value[] call3Values,uint256 nonce)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
 
-    /// @notice Mapping from withdrawal request digests to boolean values
+    /// @notice Mapping from call request digests to boolean values
     mapping(bytes32 => bool) public callRequests;
 
     /// @notice The allocator address
@@ -102,6 +102,7 @@ contract CreditMaster is Ownable, EIP712 {
     /// @notice Execute a set of calls with a signed Calls struct from the Allocator
     /// @param request The CallRequest struct
     /// @param signature The signature from the Allocator
+    /// @return returnData The results of the calls
     function execute(
         CallRequest calldata request,
         bytes memory signature
@@ -113,49 +114,70 @@ contract CreditMaster is Ownable, EIP712 {
             revert InvalidSignature();
         }
 
-        // Revert if the withdrawal request has already been used
+        // Revert if the call request has already been used
         if (callRequests[digest]) {
             revert CallRequestAlreadyUsed();
         }
 
-        // Mark the withdrawal request as used
+        // Mark the call request as used
         callRequests[digest] = true;
 
         // Execute the calls
         returnData = _executeCalls(request.call3Values);
-
-        emit CallRequestExecuted(digest);
     }
 
+    /// @notice Execute a set of calls
+    /// @param calls The calls to execute
+    /// @param digest The digest of the call request
+    /// @return returnData The results of the calls
     function _executeCalls(
-        Call3Value[] calldata calls
+        Call3Value[] calldata calls,
+        bytes32 digest
     ) internal returns (Result[] memory returnData) {
         unchecked {
             uint256 length = calls.length;
+
+            // Initialize the return data array
             returnData = new Result[](length);
+
+            // Iterate over the calls
             for (uint256 i; i < length; i++) {
                 Call3Value memory c = calls[i];
-                Result memory result = returnData[i];
 
-                (result.success, result.returnData) = c.target.call{
+                // Execute the call
+                (bool success, bytes memory data) = c.target.call{
                     value: c.value
                 }(c.callData);
-                if (!result.success && !c.allowFailure) {
-                    revert CallFailed(result.returnData);
+
+                // Revert if the call fails and allowFailure is false
+                if (!success && !c.allowFailure) {
+                    revert CallFailed(data);
                 }
+
+                // Store the success status and return data
+                returnData[i] = Result({success: success, returnData: data});
+
+                // Emit the CallExecuted event
+                emit CallExecuted(digest, c.target, success);
             }
         }
     }
 
+    /// @notice Helper function to hash a CallRequest struct and
+    ///         return the EIP-712 digest
+    /// @param request The CallRequest struct
+    /// @return digest The EIP-712 digest
     function _hashCallRequest(
         CallRequest calldata request
     ) internal returns (bytes32 digest) {
+        // Initialize the array of Call3Value hashes
         bytes32[] memory call3ValuesHashes = new bytes32[](
             request.call3Values.length
         );
 
-        // Hash the call3Values
+        // Iterate over the Call3Values
         for (uint256 i = 0; i < request.call3Values.length; i++) {
+            // Hash the Call3Value
             bytes32 call3ValueHash = keccak256(
                 abi.encode(
                     _CALL3VALUE_TYPEHASH,
@@ -165,6 +187,8 @@ contract CreditMaster is Ownable, EIP712 {
                     request.call3Values[i].callData
                 )
             );
+
+            // Store the hash in the array
             call3ValuesHashes[i] = call3ValueHash;
         }
 
@@ -180,6 +204,10 @@ contract CreditMaster is Ownable, EIP712 {
         );
     }
 
+    /// @notice Returns the domain name and version of the contract
+    ///         to be used in the domain separator
+    /// @return name The domain name
+    /// @return version The version
     function _domainNameAndVersion()
         internal
         pure
