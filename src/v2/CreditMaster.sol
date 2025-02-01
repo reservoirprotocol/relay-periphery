@@ -123,7 +123,7 @@ contract CreditMaster is Ownable, EIP712 {
         callRequests[digest] = true;
 
         // Execute the calls
-        returnData = _executeCalls(request.call3Values);
+        returnData = _executeCalls(request.call3Values, digest);
     }
 
     /// @notice Execute a set of calls
