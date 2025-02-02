@@ -15,7 +15,7 @@ import {Call3Value, CallRequest, Result} from "../src/v2/utils/RelayStructs.sol"
 
 contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
     event Deposit(address from, address token, uint256 value, bytes32 id);
-    event CallRequestExecuted(bytes32 digest);
+    event CallExecuted(bytes32 digest, address target, bool success);
     event TestDigest(bytes32 digest);
     event TestCall3ValueHash(bytes32 call3ValueHash);
     event TestStructHash(bytes32 structHash);
@@ -219,7 +219,7 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         assertEq(cm.allocator(), allocator.addr);
 
         vm.expectEmit(true, true, true, true, address(cm));
-        emit CallRequestExecuted(digest);
+        emit CallExecuted(digest, address(erc20_1), true);
 
         // Call `withdraw`
         uint256 aliceBalanceBefore = erc20_1.balanceOf(alice.addr);
