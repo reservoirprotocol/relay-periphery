@@ -1,8 +1,21 @@
-## Relay Periphery
+# Relay
 
-Relay Periphery consists of contracts powering cross-chain and same-chain swaps and execution on the Relay Protocol
+Relay is a protocol for executing cross-chain and same-chain swaps and calls.
 
-## Usage
+## Execution Paths
+
+### ERC20 Approval + Call `transferAndMulticall` on ApprovalProxy
+
+For executing ERC20 <> ETH or ERC20 swaps, a user can execute the following calls:
+
+```
+IERC20(token).approve(address(approvalProxy), amt)
+approvalProxy.transferAndMulticall(tokens, amounts, calls, refundTo)
+```
+
+The ApprovalProxy will transfer `amount` of each `token` in the input arrays from the user to the RelayRouter. The Router will then execute the specified `calls` with the user's input tokens. If the Router receives ETH as an output, it will transfer the ETH to the `refundTo` address.
+
+## Tests
 
 ### Build
 
@@ -32,12 +45,6 @@ $ forge snapshot
 
 ```shell
 $ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
 ```
 
 ### Cast
