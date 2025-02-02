@@ -7,6 +7,8 @@ import {Seaport} from "seaport-1.5/contracts/Seaport.sol";
 import {ConduitController} from "seaport-core/conduit/ConduitController.sol";
 
 contract SeaportDeployer is Script {
+    address CONDUIT_CONTROLLER = 0x48f799859eC128c7434a81b850420714a6b015ea;
+
     function run() public {
         // Utilizes the locally-defined PRIVATE_KEY environment variable to sign txs.
         vm.startBroadcast(vm.envUint("DEPLOYER_PRIVATE_KEY"));
@@ -17,9 +19,7 @@ contract SeaportDeployer is Script {
         // }();
 
         // Deploy Seaport 1.5
-        Seaport seaport = new Seaport{salt: bytes32(0)}(
-            0x48f799859eC128c7434a81b850420714a6b015ea
-        );
+        new Seaport{salt: bytes32(0)}(CONDUIT_CONTROLLER);
 
         vm.stopBroadcast();
     }

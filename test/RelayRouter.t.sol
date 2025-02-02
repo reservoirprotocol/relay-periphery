@@ -113,7 +113,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         assert(!success);
     }
 
-    function testCorrectWitnessTypehashes() public {
+    function testCorrectWitnessTypehashes() public pure {
         assertEq(
             keccak256(
                 abi.encodePacked(
@@ -626,13 +626,6 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
     }
 
     function testApprovalProxy__PermitTransferAndMulticall() public {
-        TestERC20Permit erc20Permit = new TestERC20Permit(
-            "Test20Permit",
-            "TST20"
-        );
-
-        erc20Permit.mint(alice.addr, 1 ether);
-
         // Sign the permit
         bytes32 structHash = keccak256(
             abi.encode(
@@ -933,7 +926,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
     function _hashTypedData(
         bytes32 domainSeparator,
         bytes32 structHash
-    ) internal view returns (bytes32 digest) {
+    ) internal pure returns (bytes32 digest) {
         digest = domainSeparator;
         /// @solidity memory-safe-assembly
         assembly {

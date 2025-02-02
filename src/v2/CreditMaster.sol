@@ -168,7 +168,7 @@ contract CreditMaster is Ownable, EIP712 {
     /// @return digest The EIP-712 digest
     function _hashCallRequest(
         CallRequest calldata request
-    ) internal returns (bytes32 digest) {
+    ) internal view returns (bytes32 digest) {
         // Initialize the array of Call3Value hashes
         bytes32[] memory call3ValuesHashes = new bytes32[](
             request.call3Values.length
