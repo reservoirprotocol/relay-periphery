@@ -5,7 +5,6 @@ import {EIP712} from "solady/src/utils/EIP712.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
-
 import {Call3Value, CallRequest, Result} from "./utils/RelayStructs.sol";
 
 /// @title  CreditMaster
@@ -123,7 +122,7 @@ contract CreditMaster is Ownable, EIP712 {
         callRequests[digest] = true;
 
         // Execute the calls
-        returnData = _executeCalls(request.call3Values);
+        returnData = _executeCalls(request.call3Values, digest);
     }
 
     /// @notice Execute a set of calls
@@ -169,7 +168,7 @@ contract CreditMaster is Ownable, EIP712 {
     /// @return digest The EIP-712 digest
     function _hashCallRequest(
         CallRequest calldata request
-    ) internal returns (bytes32 digest) {
+    ) internal view returns (bytes32 digest) {
         // Initialize the array of Call3Value hashes
         bytes32[] memory call3ValuesHashes = new bytes32[](
             request.call3Values.length

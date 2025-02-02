@@ -51,6 +51,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         IAllowanceHolder(payable(0x0000000000001fF3684f28c67538d4D072C22734));
     RelayRouter router;
     ApprovalProxy approvalProxy;
+    TestERC20Permit erc20Permit;
 
     bytes32 public DOMAIN_SEPARATOR;
     bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
@@ -85,18 +86,20 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         super.setUp();
 
         router = new RelayRouter(address(permit2));
-
         approvalProxy = new ApprovalProxy(address(this), address(router));
 
+        erc20Permit = new TestERC20Permit("Test20Permit", "TST20");
         // Alice approves permit2 on the ERC20
         erc20_1.mint(alice.addr, 1 ether);
         erc20_2.mint(alice.addr, 1 ether);
         erc20_3.mint(alice.addr, 1 ether);
+        erc20Permit.mint(alice.addr, 1 ether);
 
         vm.startPrank(alice.addr);
         erc20_1.approve(address(permit2), type(uint256).max);
         erc20_2.approve(address(permit2), type(uint256).max);
         erc20_3.approve(address(permit2), type(uint256).max);
+        erc20Permit.approve(address(permit2), type(uint256).max);
         vm.stopPrank();
 
         DOMAIN_SEPARATOR = permit2.DOMAIN_SEPARATOR();
@@ -110,7 +113,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         assert(!success);
     }
 
-    function testCorrectWitnessTypehashes() public {
+    function testCorrectWitnessTypehashes() public pure {
         assertEq(
             keccak256(
                 abi.encodePacked(
@@ -623,13 +626,6 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
     }
 
     function testApprovalProxy__PermitTransferAndMulticall() public {
-        TestERC20Permit erc20Permit = new TestERC20Permit(
-            "Test20Permit",
-            "TST20"
-        );
-
-        erc20Permit.mint(alice.addr, 1 ether);
-
         // Sign the permit
         bytes32 structHash = keccak256(
             abi.encode(
@@ -682,16 +678,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         assertEq(erc20Permit.balanceOf(bob.addr), 1 ether);
     }
 
-    function testApprovalProxy__PermitTransferAndMulticall__RevertUnauthorized()
-        public
-    {
-        TestERC20Permit erc20Permit = new TestERC20Permit(
-            "Test20Permit",
-            "TST20"
-        );
-
-        erc20Permit.mint(alice.addr, 1 ether);
-
+    function testApprovalProxy__PermitTransferAndMulticall__Frontrun() public {
         // Sign the permit
         bytes32 structHash = keccak256(
             abi.encode(
@@ -704,7 +691,69 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             )
         );
 
-        emit TestStructHash(structHash);
+        bytes32 eip712PermitHash = _hashTypedData(
+            erc20Permit.DOMAIN_SEPARATOR(),
+            structHash
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, eip712PermitHash);
+
+        Permit[] memory permits = new Permit[](1);
+        permits[0] = Permit({
+            token: address(erc20Permit),
+            owner: alice.addr,
+            value: 1 ether,
+            nonce: 0,
+            deadline: block.timestamp + 100,
+            v: v,
+            r: r,
+            s: s
+        });
+
+        Call3Value[] memory calls = new Call3Value[](1);
+        calls[0] = Call3Value({
+            target: address(erc20Permit),
+            allowFailure: false,
+            value: 0,
+            callData: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                bob.addr,
+                1 ether
+            )
+        });
+
+        // Cal frontruns alice's permit
+        vm.prank(cal.addr);
+        erc20Permit.permit(
+            alice.addr,
+            address(approvalProxy),
+            1 ether,
+            block.timestamp + 100,
+            v,
+            r,
+            s
+        );
+
+        vm.prank(alice.addr);
+        approvalProxy.permitTransferAndMulticall(permits, calls, alice.addr);
+        assertEq(erc20Permit.balanceOf(alice.addr), 0);
+        assertEq(erc20Permit.balanceOf(bob.addr), 1 ether);
+    }
+
+    function testApprovalProxy__PermitTransferAndMulticall__RevertUnauthorized()
+        public
+    {
+        // Sign the permit
+        bytes32 structHash = keccak256(
+            abi.encode(
+                _2612_PERMIT_TYPEHASH,
+                alice.addr,
+                address(approvalProxy),
+                1 ether,
+                0,
+                block.timestamp + 100
+            )
+        );
 
         bytes32 eip712PermitHash = _hashTypedData(
             erc20Permit.DOMAIN_SEPARATOR(),
@@ -877,7 +926,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
     function _hashTypedData(
         bytes32 domainSeparator,
         bytes32 structHash
-    ) internal view returns (bytes32 digest) {
+    ) internal pure returns (bytes32 digest) {
         digest = domainSeparator;
         /// @solidity memory-safe-assembly
         assembly {

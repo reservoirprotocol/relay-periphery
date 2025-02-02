@@ -15,6 +15,7 @@ contract BaseRelayTest is Test {
     Account solver;
     Account alice;
     Account bob;
+    Account cal;
 
     TestERC20 erc20_1;
     TestERC20 erc20_2;
@@ -45,7 +46,7 @@ contract BaseRelayTest is Test {
         solver = makeAccountAndDeal("solver", 10 ether);
         alice = makeAccountAndDeal("alice", 10 ether);
         bob = makeAccountAndDeal("bob", 10 ether);
-
+        cal = makeAccountAndDeal("cal", 10 ether);
         erc20_1 = new TestERC20();
         erc20_2 = new TestERC20();
         erc20_3 = new TestERC20();
