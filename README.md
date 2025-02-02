@@ -6,7 +6,7 @@ Relay is a protocol for executing cross-chain and same-chain swaps and calls.
 
 The ApprovalProxy and RelayRouter enable users to execute token swaps (ERC20 <> ETH or ERC20 <> ERC20). There are three ways to execute swaps:
 
-### Standard Approval Flow
+### 1. Standard Approval Flow
 
 ```solidity
 // 1. First approve the ApprovalProxy to spend your tokens
@@ -26,7 +26,7 @@ approvalProxy.transferAndMulticall(
 3. Any ETH received from the operations is sent to the `refundTo` address
 4. Any remaining tokens can be retrieved using cleanup functions on the RelayRouter
 
-### ERC2612 Permit Flow (No Pre-approval Required)
+### 2. ERC2612 Permit Flow (No Pre-approval Required)
 
 For tokens that support ERC2612 permit, you can skip the separate approval step:
 
@@ -38,7 +38,7 @@ approvalProxy.permitTransferAndMulticall(
 );
 ```
 
-### Permit2 Flow
+### 3. Permit2 Flow
 
 The RelayRouter also supports Permit2 for executing swaps
 
