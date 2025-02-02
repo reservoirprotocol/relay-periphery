@@ -2,18 +2,66 @@
 
 Relay is a protocol for executing cross-chain and same-chain swaps and calls.
 
-## Execution Paths
+## Token Swaps
 
-### ERC20 Approval + Call `transferAndMulticall` on ApprovalProxy
+The ApprovalProxy and RelayRouter enable users to execute token swaps (ERC20 <> ETH or ERC20 <> ERC20). There are three ways to execute swaps:
 
-For executing ERC20 <> ETH or ERC20 swaps, a user can execute the following calls:
+### Standard Approval Flow
 
+```solidity
+// 1. First approve the ApprovalProxy to spend your tokens
+IERC20(tokenAddress).approve(approvalProxyAddress, amount);
+
+// 2. Then call transferAndMulticall with:
+approvalProxy.transferAndMulticall(
+    tokens,      // Array of tokens to transfer
+    amounts,     // Array of amounts to transfer for each token
+    calls,       // Array of calls to execute (e.g., swap operations)
+    refundTo     // Address to receive any leftover ETH from the swap
+);
 ```
-IERC20(token).approve(address(approvalProxy), amt)
-approvalProxy.transferAndMulticall(tokens, amounts, calls, refundTo)
+
+1. The ApprovalProxy transfers the specified tokens from the user to the RelayRouter
+2. The RelayRouter executes the specified calls (e.g., swap operations)
+3. Any ETH received from the operations is sent to the `refundTo` address
+4. Any remaining tokens can be retrieved using cleanup functions on the RelayRouter
+
+### ERC2612 Permit Flow (No Pre-approval Required)
+
+For tokens that support ERC2612 permit, you can skip the separate approval step:
+
+```solidity
+approvalProxy.permitTransferAndMulticall(
+    permits,     // Array of permit data (signed approvals)
+    calls,       // Array of calls to execute
+    refundTo     // Address to receive any leftover ETH
+);
 ```
 
-The ApprovalProxy will transfer `amount` of each `token` in the input arrays from the user to the RelayRouter. The Router will then execute the specified `calls` with the user's input tokens. If the Router receives ETH as an output, it will transfer the ETH to the `refundTo` address.
+### Permit2 Flow
+
+The RelayRouter also supports Permit2 for executing swaps
+
+```solidity
+// 1. First approve Permit2 contract to spend your tokens (one-time setup per token)
+IERC20(tokenAddress).approve(PERMIT2_ADDRESS, type(uint256).max);
+
+// 2. Generate and sign a Permit2 message off-chain
+// The signature authorizes the RelayRouter to transfer specific amounts of tokens
+
+// 3. Call permitMulticall with:
+relayRouter.permitMulticall(
+    user,             // Address of the token owner
+    permit,           // Permit2 batch transfer details (token addresses and amounts)
+    calls,            // Array of calls to execute (e.g., swap operations)
+    permitSignature   // Signed Permit2 message authorizing the transfers
+);
+```
+
+1. User approves Permit2 and signs an offchain message authorizing token transfers
+2. RelayRouter verifies the signature and uses Permit2 to transfer tokens from the user
+3. RelayRouter executes the specified calls (e.g., swap operations)
+4. Any remaining tokens or ETH can be handled via cleanup functions
 
 ## Tests
 
