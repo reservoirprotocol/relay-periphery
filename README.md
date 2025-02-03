@@ -14,10 +14,11 @@ IERC20(tokenAddress).approve(approvalProxyAddress, amount);
 
 // 2. Then call transferAndMulticall with:
 approvalProxy.transferAndMulticall(
-    tokens,      // Array of tokens to transfer
-    amounts,     // Array of amounts to transfer for each token
-    calls,       // Array of calls to execute (e.g., swap operations)
-    refundTo     // Address to receive any leftover ETH from the swap
+    tokens,       // Array of tokens to transfer
+    amounts,      // Array of amounts to transfer for each token
+    calls,        // Array of calls to execute (e.g., swap operations)
+    refundTo,     // Address to receive any leftover ETH from the swap
+    nftRecipient  // Address to set as NFT recipient (if calls includes NFT mint)
 );
 ```
 
@@ -32,15 +33,16 @@ For tokens that support ERC2612 permit, you can skip the separate approval step:
 
 ```solidity
 approvalProxy.permitTransferAndMulticall(
-    permits,     // Array of permit data (signed approvals)
-    calls,       // Array of calls to execute
-    refundTo     // Address to receive any leftover ETH
+    permits,      // Array of permit data (signed approvals)
+    calls,        // Array of calls to execute
+    refundTo,     // Address to receive any leftover ETH
+    nftRecipient  // Address to set as NFT recipient (if calls includes NFT mint)
 );
 ```
 
 ### 3. Permit2 Flow
 
-The RelayRouter also supports Permit2 for executing swaps
+The ApprovalProxy also supports Permit2 for executing swaps
 
 ```solidity
 // 1. First approve Permit2 contract to spend your tokens (one-time setup per token)
@@ -50,10 +52,12 @@ IERC20(tokenAddress).approve(PERMIT2_ADDRESS, type(uint256).max);
 // The signature authorizes the RelayRouter to transfer specific amounts of tokens
 
 // 3. Call permitMulticall with:
-relayRouter.permitMulticall(
+approvalProxy.permit2TransferAndMulticall(
     user,             // Address of the token owner
     permit,           // Permit2 batch transfer details (token addresses and amounts)
     calls,            // Array of calls to execute (e.g., swap operations)
+    refundTo,         // Address to receive any leftover ETH
+    nftRecipient,     // Address to set as NFT recipient (if calls includes NFT mint)
     permitSignature   // Signed Permit2 message authorizing the transfers
 );
 ```
@@ -62,6 +66,12 @@ relayRouter.permitMulticall(
 2. RelayRouter verifies the signature and uses Permit2 to transfer tokens from the user
 3. RelayRouter executes the specified calls (e.g., swap operations)
 4. Any remaining tokens or ETH can be handled via cleanup functions
+
+## CreditMaster
+
+CreditMaster is a contract for holding user and solver funds in escrow to secure Relay orders. CreditMaster can be deployed to any chain where users would like to send input tokens for a cross-chain or same-chain order.
+
+CreditMaster does not keep track of individual account balances – instead balances across all chains are tracked by an offchain Allocator that generates signatures when users and solvers would like to withdraw their funds. For example, once a user deposits ETH on Chain A to be bridged to Chain B, a solver can prove to the Allocator that they filled the user's order on Chain B in order to increase the solver's ETH balance on Chain A.
 
 ## Tests
 
