@@ -54,15 +54,21 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
     TestERC20Permit erc20Permit;
 
     bytes32 public DOMAIN_SEPARATOR;
+    bytes32 public constant _CALL3VALUE_TYPEHASH =
+        keccak256(
+            "Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+        );
     bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
-        keccak256("RelayerWitness(address relayer)");
+        keccak256(
+            "RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+        );
     bytes32 public constant _FULL_RELAYER_WITNESS_TYPEHASH =
         keccak256(
-            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)"
+            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)"
         );
     bytes32 public constant _FULL_RELAYER_WITNESS_BATCH_TYPEHASH =
         keccak256(
-            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)"
+            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)"
         );
     bytes32 public constant _PERMIT_BATCH_TRANSFER_FROM_TYPEHASH =
         keccak256(
@@ -73,7 +79,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
         );
     string public constant _RELAYER_WITNESS_TYPE_STRING =
-        "RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)";
+        "RelayerWitness witness)RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)";
 
     ISignatureTransfer.PermitBatchTransferFrom emptyPermit =
         ISignatureTransfer.PermitBatchTransferFrom({
@@ -85,8 +91,12 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
     function setUp() public override {
         super.setUp();
 
-        router = new RelayRouter(address(permit2));
-        approvalProxy = new ApprovalProxy(address(this), address(router));
+        router = new RelayRouter();
+        approvalProxy = new ApprovalProxy(
+            address(this),
+            address(router),
+            PERMIT2
+        );
 
         erc20Permit = new TestERC20Permit("Test20Permit", "TST20");
         // Alice approves permit2 on the ERC20
@@ -158,21 +168,6 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
                 deadline: block.timestamp + 100
             });
 
-        // Get the witness
-        bytes32 witness = keccak256(
-            abi.encode(_EIP_712_RELAYER_WITNESS_TYPE_HASH, relayer.addr)
-        );
-
-        // Get the permit signature
-        bytes memory permitSig = getPermitBatchWitnessSignature(
-            permit,
-            address(router),
-            alice.key,
-            _FULL_RELAYER_WITNESS_BATCH_TYPEHASH,
-            witness,
-            DOMAIN_SEPARATOR
-        );
-
         // Create calldata to transfer tokens from the router to Bob
         bytes memory calldata1 = abi.encodeWithSelector(
             erc20_1.transfer.selector,
@@ -224,9 +219,48 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             callData: calldata4
         });
 
+        // Get the witness
+        bytes32[] memory call3ValuesHashes = new bytes32[](calls.length);
+        for (uint256 i = 0; i < calls.length; i++) {
+            call3ValuesHashes[i] = keccak256(
+                abi.encode(
+                    _CALL3VALUE_TYPEHASH,
+                    calls[i].target,
+                    calls[i].allowFailure,
+                    calls[i].value,
+                    keccak256(calls[i].callData)
+                )
+            );
+        }
+
+        bytes32 witness = keccak256(
+            abi.encode(
+                _EIP_712_RELAYER_WITNESS_TYPE_HASH,
+                relayer.addr,
+                keccak256(abi.encodePacked(call3ValuesHashes))
+            )
+        );
+
+        // Get the permit signature
+        bytes memory permitSig = getPermitBatchWitnessSignature(
+            permit,
+            address(approvalProxy),
+            alice.key,
+            _FULL_RELAYER_WITNESS_BATCH_TYPEHASH,
+            witness,
+            DOMAIN_SEPARATOR
+        );
+
         // Call the router as the relayer
         vm.prank(relayer.addr);
-        router.permitMulticall(alice.addr, permit, calls, permitSig);
+        approvalProxy.permit2TransferAndMulticall(
+            alice.addr,
+            permit,
+            calls,
+            address(0),
+            address(0),
+            permitSig
+        );
 
         assertEq(erc20_1.balanceOf(bob.addr), 0.03 ether);
         assertEq(erc20_2.balanceOf(bob.addr), 0.15 ether);
@@ -266,7 +300,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         uint256 aliceUSDCBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
 
         vm.prank(alice.addr);
-        router.multicall{value: 1 ether}(calls, address(0));
+        router.multicall{value: 1 ether}(calls, address(0), address(0));
 
         uint256 aliceBalanceAfter = alice.addr.balance;
         uint256 aliceUSDCBalanceAfter = IERC20(USDC).balanceOf(alice.addr);
@@ -313,7 +347,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         uint256 aliceUSDCBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
 
         vm.prank(alice.addr);
-        router.multicall{value: 2 ether}(calls, alice.addr);
+        router.multicall{value: 2 ether}(calls, address(0), address(0));
 
         uint256 aliceBalanceAfter = alice.addr.balance;
         uint256 aliceUSDCBalanceAfter = IERC20(USDC).balanceOf(alice.addr);
@@ -376,7 +410,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         );
 
         vm.prank(alice.addr);
-        router.multicall{value: 1 ether}(calls, alice.addr);
+        router.multicall{value: 1 ether}(calls, address(0), address(0));
 
         uint256 aliceBalanceAfterMulticall = alice.addr.balance;
         uint256 routerUSDCBalanceAfterMulticall = IERC20(USDC).balanceOf(
@@ -406,47 +440,8 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         assertEq(routerUSDCBalanceAfterCleanup, 0);
     }
 
-    function testPermitMulticall__SwapETHForERC20() public {
-        address[] memory path = new address[](2);
-        path[0] = WETH;
-        path[1] = USDC;
-
-        bytes memory calldata1 = abi.encodeWithSelector(
-            IUniswapV2Router01.swapExactETHForTokens.selector,
-            0,
-            path,
-            alice.addr,
-            block.timestamp
-        );
-
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
-            target: ROUTER_V2,
-            allowFailure: false,
-            value: 1 ether,
-            callData: calldata1
-        });
-
-        uint256 aliceBalanceBefore = alice.addr.balance;
-        uint256 aliceUSDCBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
-
-        vm.prank(alice.addr);
-        router.permitMulticall{value: 1 ether}(
-            alice.addr,
-            emptyPermit,
-            calls,
-            bytes("")
-        );
-
-        uint256 aliceBalanceAfter = alice.addr.balance;
-        uint256 aliceUSDCBalanceAfter = IERC20(USDC).balanceOf(alice.addr);
-
-        assertEq(aliceBalanceBefore - aliceBalanceAfter, 1 ether);
-        assertGt(aliceUSDCBalanceAfter, aliceUSDCBalanceBefore);
-    }
-
     function testApprovalProxyMulticall__transferFrom() public {
-        // Approve the approval helper to spend erc20_1
+        // Approve the approval proxy to spend erc20_1
         vm.prank(alice.addr);
         erc20_1.approve(address(approvalProxy), 1 ether);
 
@@ -471,7 +466,13 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
 
         vm.prank(alice.addr);
         vm.expectRevert("Multicall3: call failed");
-        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
+        approvalProxy.transferAndMulticall(
+            tokens,
+            amounts,
+            calls,
+            address(0),
+            address(0)
+        );
 
         assertEq(erc20_1.balanceOf(address(router)), 0);
 
@@ -487,7 +488,13 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         });
 
         vm.prank(alice.addr);
-        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
+        approvalProxy.transferAndMulticall(
+            tokens,
+            amounts,
+            calls,
+            alice.addr,
+            address(0)
+        );
 
         assertEq(erc20_1.balanceOf(bob.addr), 1 ether);
     }
@@ -496,7 +503,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         // Deal alice some USDC
         deal(USDC, alice.addr, 1000 * 10 ** 6);
 
-        // Approve the approval helper to spend USDC
+        // Approve the approval proxy to spend USDC
         vm.prank(alice.addr);
         IERC20(USDC).approve(address(approvalProxy), 1 ether);
 
@@ -542,7 +549,13 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         });
 
         vm.prank(alice.addr);
-        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
+        approvalProxy.transferAndMulticall(
+            tokens,
+            amounts,
+            calls,
+            address(0),
+            address(0)
+        );
 
         assertEq(IERC20(USDC).balanceOf(alice.addr), 0);
         assertEq(IERC20(USDC).balanceOf(address(router)), 0);
@@ -576,7 +589,13 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         });
 
         vm.expectRevert("Multicall3: call failed");
-        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
+        approvalProxy.transferAndMulticall(
+            tokens,
+            amounts,
+            calls,
+            address(0),
+            address(0)
+        );
     }
 
     function testApprovalProxy__SetRouter() public {
@@ -590,7 +609,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
     }
 
     function testApprovalProxy__RevertApprovalExploit() public {
-        // Alice approves the approval helper to spend erc20_1
+        // Alice approves the approval proxy to spend erc20_1
         vm.prank(alice.addr);
         erc20_1.approve(address(approvalProxy), 1 ether);
 
@@ -622,7 +641,13 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
 
         vm.prank(bob.addr);
         vm.expectRevert("Multicall3: call failed");
-        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr);
+        approvalProxy.transferAndMulticall(
+            tokens,
+            amounts,
+            calls,
+            address(0),
+            address(0)
+        );
     }
 
     function testApprovalProxy__PermitTransferAndMulticall() public {
@@ -672,7 +697,12 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         });
 
         vm.prank(alice.addr);
-        approvalProxy.permitTransferAndMulticall(permits, calls, alice.addr);
+        approvalProxy.permitTransferAndMulticall(
+            permits,
+            calls,
+            address(0),
+            address(0)
+        );
 
         assertEq(erc20Permit.balanceOf(alice.addr), 0);
         assertEq(erc20Permit.balanceOf(bob.addr), 1 ether);
@@ -735,7 +765,12 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         );
 
         vm.prank(alice.addr);
-        approvalProxy.permitTransferAndMulticall(permits, calls, alice.addr);
+        approvalProxy.permitTransferAndMulticall(
+            permits,
+            calls,
+            address(0),
+            address(0)
+        );
         assertEq(erc20Permit.balanceOf(alice.addr), 0);
         assertEq(erc20Permit.balanceOf(bob.addr), 1 ether);
     }
@@ -788,7 +823,12 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
 
         vm.prank(bob.addr);
         vm.expectRevert(Unauthorized.selector);
-        approvalProxy.permitTransferAndMulticall(permits, calls, alice.addr);
+        approvalProxy.permitTransferAndMulticall(
+            permits,
+            calls,
+            address(0),
+            address(0)
+        );
     }
 
     function testUSDTCleanupWithSafeERC20() public {
@@ -822,7 +862,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         uint256 solverBalanceBefore = IERC20(USDT).balanceOf(relaySolver);
 
         vm.prank(relaySolver);
-        router.multicall(calls, relaySolver);
+        router.multicall(calls, address(0), address(0));
 
         assertEq(
             IERC20(USDT).balanceOf(relaySolver) - solverBalanceBefore,
@@ -848,7 +888,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         });
 
         vm.prank(alice.addr);
-        router.multicall(calls, alice.addr);
+        router.multicall(calls, address(0), alice.addr);
 
         assertEq(erc721.ownerOf(1), alice.addr);
     }
@@ -879,7 +919,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         });
 
         vm.prank(alice.addr);
-        router.multicall(calls, alice.addr);
+        router.multicall(calls, address(0), alice.addr);
 
         assertEq(erc721.ownerOf(1), alice.addr);
     }
@@ -903,7 +943,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             callData: calldata1
         });
 
-        router.multicall(calls, alice.addr);
+        router.multicall(calls, address(0), alice.addr);
 
         assertEq(erc721.ownerOf(1), alice.addr);
     }
