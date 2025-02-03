@@ -26,7 +26,7 @@ contract OwnableRelayRouterTest is Test, BaseRelayTest {
     function setUp() public override {
         super.setUp();
 
-        ownableRouter = new OwnableRelayRouter(address(permit2), solver.addr);
+        ownableRouter = new OwnableRelayRouter(solver.addr);
     }
 
     function testMulticall__RevertOnlyOwner() public {
@@ -44,40 +44,6 @@ contract OwnableRelayRouterTest is Test, BaseRelayTest {
 
         vm.expectRevert(Unauthorized.selector);
         vm.prank(alice.addr);
-        ownableRouter.multicall(calls, alice.addr);
-    }
-
-    function testPermitMulticall__RevertOnlyOwner() public {
-        ISignatureTransfer.TokenPermissions[]
-            memory permitted = new ISignatureTransfer.TokenPermissions[](1);
-        permitted[0] = ISignatureTransfer.TokenPermissions({
-            token: address(erc20_1),
-            amount: 0.1 ether
-        });
-
-        ISignatureTransfer.PermitBatchTransferFrom
-            memory permit = ISignatureTransfer.PermitBatchTransferFrom({
-                permitted: permitted,
-                nonce: 1,
-                deadline: block.timestamp + 100
-            });
-
-        bytes memory calldata1 = abi.encodeWithSelector(
-            erc20_1.transfer.selector,
-            bob.addr,
-            0.03 ether
-        );
-
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
-            target: address(erc20_1),
-            allowFailure: false,
-            value: 0,
-            callData: calldata1
-        });
-
-        vm.expectRevert(Unauthorized.selector);
-        vm.prank(alice.addr);
-        ownableRouter.permitMulticall(alice.addr, permit, calls, "");
+        ownableRouter.multicall(calls, address(0), address(0));
     }
 }

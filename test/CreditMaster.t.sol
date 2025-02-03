@@ -47,9 +47,13 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
     function setUp() public override {
         super.setUp();
 
-        router = new RelayRouter(PERMIT2);
+        router = new RelayRouter();
         cm = new CreditMaster(allocator.addr);
-        approvalProxy = new ApprovalProxy(address(this), address(router));
+        approvalProxy = new ApprovalProxy(
+            address(this),
+            address(router),
+            PERMIT2
+        );
     }
 
     function testDepositEth(uint256 amount) public {
@@ -131,7 +135,13 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         // Alice transfers ERC20s to ApprovalProxy
         // ApprovalProxy transfers tokens to RelayRouter
         // RelayRouter calls `depositErc20` on CreditManager to deposit on behalf of Alice
-        approvalProxy.transferAndMulticall(tokens, amounts, calls, address(0));
+        approvalProxy.transferAndMulticall(
+            tokens,
+            amounts,
+            calls,
+            address(0),
+            address(0)
+        );
 
         assertEq(amount, erc20_1.balanceOf(address(cm)));
     }
