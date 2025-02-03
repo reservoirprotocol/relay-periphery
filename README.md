@@ -25,7 +25,7 @@ approvalProxy.transferAndMulticall(
 1. ApprovalProxy transfers the specified tokens from the user to RelayRouter
 2. RelayRouter executes the specified calls (e.g., swap operations)
 3. Any ETH received from the operations is sent to the `refundTo` address
-4. If `calls` includes an NFT mint or transfer, `nftRecipient` MUST be specified to transfer the token to `nftRecipient` in `onERC721Received`
+4. If `calls` includes an NFT mint or transfer, `nftRecipient` MUST be specified to transfer the token to `nftRecipient` in the corresponding `onReceived` hook
 5. Any remaining tokens can be retrieved using cleanup functions on the RelayRouter
 
 ### 2. ERC2612 Permit Flow (No Pre-approval Required)
@@ -44,7 +44,7 @@ approvalProxy.permitTransferAndMulticall(
 1. ApprovalProxy calls `permit` on the ERC20 tokens
 2. RelayRouter executes the specified calls (e.g., swap operations)
 3. Any ETH received from the operations is sent to the `refundTo` address
-4. If `calls` includes an NFT mint or transfer, `nftRecipient` MUST be specified to transfer the token to `nftRecipient` in `onERC721Received`
+4. If `calls` includes an NFT mint or transfer, `nftRecipient` MUST be specified to transfer the token to `nftRecipient` in the corresponding `onReceived` hook
 5. Any remaining tokens can be retrieved using cleanup functions on the RelayRouter
 
 ### 3. Permit2 Flow
@@ -72,7 +72,7 @@ approvalProxy.permit2TransferAndMulticall(
 1. User approves Permit2 and signs an offchain message authorizing token transfers
 2. RelayRouter verifies the signature and uses Permit2 to transfer tokens from the user
 3. RelayRouter executes the specified calls (e.g., swap operations)
-4. If `calls` includes an NFT mint or transfer, `nftRecipient` MUST be specified to transfer the token to `nftRecipient` in `onERC721Received`
+4. If `calls` includes an NFT mint or transfer, `nftRecipient` MUST be specified to transfer the token to `nftRecipient` in the corresponding `onReceived` hook
 5. Any remaining tokens or ETH can be handled via cleanup functions
 
 ## CreditMaster
