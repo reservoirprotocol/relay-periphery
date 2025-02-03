@@ -7,13 +7,8 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
-import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
-import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {Multicall3} from "./utils/Multicall3.sol";
-import {Call, Call3, Call3Value, Result} from "./utils/RelayStructs.sol";
-struct RelayerWitness {
-    address relayer;
-}
+import {Call, Call3, Call3Value, Result, RelayerWitness} from "./utils/RelayStructs.sol";
 
 contract RelayRouter is Multicall3, Tstorish {
     using SafeTransferLib for address;
@@ -37,50 +32,18 @@ contract RelayRouter is Multicall3, Tstorish {
     uint256 RECIPIENT_STORAGE_SLOT =
         uint256(keccak256("RelayRouter.recipient"));
 
-    IPermit2 private immutable PERMIT2;
-    address private immutable MULTICALLER;
-
-    string public constant _RELAYER_WITNESS_TYPE_STRING =
-        "RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)";
-    bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
-        keccak256("RelayerWitness(address relayer)");
-
-    constructor(address permit2) Tstorish() {
-        // Set the address of the Permit2 contract
-        PERMIT2 = IPermit2(permit2);
-    }
-
-    /// @notice Pull user ERC20 tokens through a signed batch permit
-    ///         and perform an arbitrary multicall. Pass in an empty
-    ///         permitSignature to only perform the multicall.
-    /// @dev msg.value will persist across all calls in the multicall
-    /// @param user The address of the user
-    /// @param permit The permit details
-    /// @param calls The calls to perform
-    /// @param permitSignature The signature for the permit
-    function permitMulticall(
-        address user,
-        ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        Call3Value[] calldata calls,
-        bytes memory permitSignature
-    ) public payable virtual returns (Result[] memory returnData) {
-        if (permitSignature.length != 0) {
-            // Use permit to transfer tokens from user to router
-            _handleBatchPermit(user, permit, permitSignature);
-        }
-
-        // Perform the multicall and send leftover to refundTo
-        returnData = _aggregate3Value(calls);
-    }
+    constructor() Tstorish() {}
 
     /// @notice Execute a multicall with the RelayRouter as msg.sender.
     /// @dev    If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
     ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in recipient
     ///         Be sure to transfer ERC20s or ETH out of the router as part of the multicall
     /// @param calls The calls to perform
+    /// @param refundTo The address to refund any leftover ETH to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     function multicall(
         Call3Value[] calldata calls,
+        address refundTo,
         address nftRecipient
     ) public payable virtual returns (Result[] memory returnData) {
         // Set the NFT recipient if provided
@@ -96,7 +59,10 @@ contract RelayRouter is Multicall3, Tstorish {
 
         // Refund any leftover ETH to the sender
         if (address(this).balance > 0) {
-            msg.sender.safeTransferETH(address(this).balance);
+            // If refundTo is address(0), refund to msg.sender
+            address refundAddr = refundTo == address(0) ? msg.sender : refundTo;
+
+            refundAddr.safeTransferETH(address(this).balance);
         }
     }
 
@@ -148,47 +114,6 @@ contract RelayRouter is Multicall3, Tstorish {
         } else {
             recipientAddr.safeTransferETH(amount);
         }
-    }
-
-    /// @notice Internal function to handle a permit batch transfer
-    /// @param user The address of the user
-    /// @param permit The permit details
-    /// @param permitSignature The signature for the permit
-    function _handleBatchPermit(
-        address user,
-        ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        bytes memory permitSignature
-    ) internal {
-        // Create the witness that should be signed over
-        bytes32 witness = keccak256(
-            abi.encode(_EIP_712_RELAYER_WITNESS_TYPE_HASH, msg.sender)
-        );
-
-        // Create the SignatureTransferDetails array
-        ISignatureTransfer.SignatureTransferDetails[]
-            memory signatureTransferDetails = new ISignatureTransfer.SignatureTransferDetails[](
-                permit.permitted.length
-            );
-        for (uint256 i = 0; i < permit.permitted.length; i++) {
-            uint256 amount = permit.permitted[i].amount;
-
-            signatureTransferDetails[i] = ISignatureTransfer
-                .SignatureTransferDetails({
-                    to: address(this),
-                    requestedAmount: amount
-                });
-        }
-
-        // Use the SignatureTransferDetails and permit signature to transfer tokens to the router
-        PERMIT2.permitWitnessTransferFrom(
-            permit,
-            signatureTransferDetails,
-            // When using a permit signature, cannot deposit on behalf of someone else other than `user`
-            user,
-            witness,
-            _RELAYER_WITNESS_TYPE_STRING,
-            permitSignature
-        );
     }
 
     /// @notice Internal function to set the recipient address for ERC721 or ERC1155 mint

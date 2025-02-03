@@ -1,23 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
-
 import {Call3Value, Result} from "../utils/RelayStructs.sol";
 
 interface IRelayRouter {
-    function permitMulticall(
-        address user,
-        ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        Call3Value[] calldata calls,
-        address refundTo,
-        bytes memory permitSignature
-    ) external payable returns (Result[] memory returnData);
-
     function multicall(
         Call3Value[] calldata calls,
-        address refundTo
+        address refundTo,
+        address nftRecipient
     ) external payable returns (Result[] memory returnData);
 
-    function cleanupERC20(address token, address refundTo) external;
+    function cleanupErc20s(
+        address[] calldata tokens,
+        address[] calldata recipients,
+        uint256[] calldata amounts
+    ) external;
+
+    function cleanupNative(uint256 amount, address recipient) external;
 }

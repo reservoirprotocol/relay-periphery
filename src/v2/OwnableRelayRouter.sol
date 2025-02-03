@@ -9,26 +9,9 @@ import {Call3Value, Result} from "./utils/RelayStructs.sol";
 /// @title OwnableRelayRouter
 /// @notice An owned RelayRouter that can only be called by the owner
 contract OwnableRelayRouter is RelayRouter, Ownable {
-    constructor(address permit2, address owner) RelayRouter(permit2) {
+    constructor(address owner) RelayRouter() {
         // Set the owner that can perform multicalls and withdraw funds stuck in the contract
         _initializeOwner(owner);
-    }
-
-    /// @notice Pull user ERC20 tokens through a signed batch permit
-    ///         and perform an arbitrary multicall. Pass in an empty
-    ///         permitSignature to only perform the multicall.
-    /// @dev msg.value will persist across all calls in the multicall
-    /// @param user The address of the user
-    /// @param permit The permit details
-    /// @param calls The calls to perform
-    /// @param permitSignature The signature for the permit
-    function permitMulticall(
-        address user,
-        ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        Call3Value[] calldata calls,
-        bytes memory permitSignature
-    ) public payable override onlyOwner returns (Result[] memory returnData) {
-        return super.permitMulticall(user, permit, calls, permitSignature);
     }
 
     /// @notice Perform the multicall and send leftover ETH to the refundTo address
@@ -39,9 +22,10 @@ contract OwnableRelayRouter is RelayRouter, Ownable {
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     function multicall(
         Call3Value[] calldata calls,
+        address refundTo,
         address nftRecipient
     ) public payable override onlyOwner returns (Result[] memory returnData) {
-        return super.multicall(calls, nftRecipient);
+        return super.multicall(calls, refundTo, nftRecipient);
     }
 
     /// @notice Send leftover ERC20 tokens to the refundTo address

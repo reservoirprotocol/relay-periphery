@@ -19,11 +19,6 @@ struct Call3Value {
     bytes callData;
 }
 
-struct Result {
-    bool success;
-    bytes returnData;
-}
-
 struct CallRequest {
     Call3Value[] call3Values;
     uint256 nonce;
@@ -38,4 +33,14 @@ struct Permit {
     uint8 v;
     bytes32 r;
     bytes32 s;
+}
+
+struct Result {
+    bool success;
+    bytes returnData;
+}
+
+struct RelayerWitness {
+    address relayer;
+    Call3Value[] call3Values;
 }
