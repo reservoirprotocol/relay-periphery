@@ -7,6 +7,8 @@ import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {Call3Value, CallRequest, Result} from "./utils/RelayStructs.sol";
 
+// TODO: add sender to CallRequest struct (confirm with SB)
+
 /// @title  CreditMaster
 /// @author Reservoir
 contract CreditMaster is Ownable, EIP712 {
@@ -183,7 +185,7 @@ contract CreditMaster is Ownable, EIP712 {
                     request.call3Values[i].target,
                     request.call3Values[i].allowFailure,
                     request.call3Values[i].value,
-                    request.call3Values[i].callData
+                    keccak256(request.call3Values[i].callData)
                 )
             );
 

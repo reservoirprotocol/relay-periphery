@@ -12,20 +12,32 @@ import {TrustlessPermit} from "trustlessPermit/TrustlessPermit.sol";
 import {IRelayRouter} from "./interfaces/IRelayRouter.sol";
 import {Call3Value, Permit, Result} from "./utils/RelayStructs.sol";
 
+// TODO: add refundTo and nftRecipient to permit witness
+
 contract ApprovalProxy is Ownable {
     using SafeERC20 for IERC20;
     using SignatureCheckerLib for address;
     using TrustlessPermit for address;
 
+    /// @notice Revert if the array lengths do not match
     error ArrayLengthsMismatch();
-    error ERC20TransferFromFailed();
-    error InvalidSignature();
+
+    /// @notice Revert if the native transfer fails
     error NativeTransferFailed();
 
+    /// @notice Revert if the refundTo address is zero address
+    error RefundToCannotBeZeroAddress();
+
+    /// @notice Emit event when the router is updated
     event RouterUpdated(address newRouter);
+
+    /// @notice Emit event when the Permit2 address is updated
     event Permit2Updated(address newPermit2);
 
+    /// @notice The address of the router contract
     address public router;
+
+    /// @notice The Permit2 contract
     IPermit2 private PERMIT2;
 
     bytes32 public constant _CALL3VALUE_TYPEHASH =
@@ -69,7 +81,9 @@ contract ApprovalProxy is Ownable {
     }
 
     /// @notice Transfer tokens to RelayRouter and perform multicall in a single tx
-    /// @dev This contract must be approved to transfer msg.sender's tokens to the RelayRouter
+    /// @dev    This contract must be approved to transfer msg.sender's tokens to the RelayRouter. If leftover ETH
+    ///         is expected as part of the multicall, be sure to set refundTo to the expected recipient. If the multicall
+    ///         includes ERC721/ERC1155 mints or transfers, be sure to set nftRecipient to the expected recipient.
     /// @param tokens An array of token addresses to transfer
     /// @param amounts An array of token amounts to transfer
     /// @param calls The calls to perform
@@ -87,6 +101,11 @@ contract ApprovalProxy is Ownable {
             revert ArrayLengthsMismatch();
         }
 
+        // Revert if refundTo is zero address
+        if (refundTo == address(0)) {
+            revert RefundToCannotBeZeroAddress();
+        }
+
         // Transfer the tokens to the router
         for (uint256 i = 0; i < tokens.length; i++) {
             IERC20(tokens[i]).safeTransferFrom(msg.sender, router, amounts[i]);
@@ -102,10 +121,13 @@ contract ApprovalProxy is Ownable {
     }
 
     /// @notice Use ERC2612 permit to transfer tokens to RelayRouter and execute multicall in a single tx
-    /// @dev Approved spender must be address(this) to transfer user's tokens to the RelayRouter
+    /// @dev    Approved spender must be address(this) to transfer user's tokens to the RelayRouter. If leftover ETH
+    ///         is expected as part of the multicall, be sure to set refundTo to the expected recipient. If the multicall
+    ///         includes ERC721/ERC1155 mints or transfers, be sure to set nftRecipient to the expected recipient.
     /// @param permits An array of permits
     /// @param calls The calls to perform
     /// @param refundTo The address to refund any leftover ETH to
+    /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @return returnData The return data from the multicall
     function permitTransferAndMulticall(
         Permit[] calldata permits,
@@ -113,6 +135,11 @@ contract ApprovalProxy is Ownable {
         address refundTo,
         address nftRecipient
     ) external payable returns (Result[] memory returnData) {
+        // Revert if refundTo is zero address
+        if (refundTo == address(0)) {
+            revert RefundToCannotBeZeroAddress();
+        }
+
         for (uint256 i = 0; i < permits.length; i++) {
             Permit memory permit = permits[i];
 
@@ -152,10 +179,14 @@ contract ApprovalProxy is Ownable {
 
     /// @notice Use Permit2 to transfer tokens to RelayRouter and perform an arbitrary multicall.
     ///         Pass in an empty permitSignature to only perform the multicall.
-    /// @dev    msg.value will persist across all calls in the multicall
+    /// @dev    msg.value will persist across all calls in the multicall. If leftover ETH is expected
+    ///         as part of the multicall, be sure to set refundTo to the expected recipient. If the multicall
+    ///         includes ERC721/ERC1155 mints or transfers, be sure to set nftRecipient to the expected recipient.
     /// @param user The address of the user
     /// @param permit The permit details
     /// @param calls The calls to perform
+    /// @param refundTo The address to refund any leftover ETH to
+    /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param permitSignature The signature for the permit
     function permit2TransferAndMulticall(
         address user,
@@ -165,6 +196,11 @@ contract ApprovalProxy is Ownable {
         address nftRecipient,
         bytes memory permitSignature
     ) external payable returns (Result[] memory returnData) {
+        // Revert if refundTo is zero address
+        if (refundTo == address(0)) {
+            revert RefundToCannotBeZeroAddress();
+        }
+
         if (permitSignature.length != 0) {
             // Use permit to transfer tokens from user to router
             _handleBatchPermit(user, permit, calls, permitSignature);

@@ -286,7 +286,7 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
                     request.call3Values[i].target,
                     request.call3Values[i].allowFailure,
                     request.call3Values[i].value,
-                    request.call3Values[i].callData
+                    keccak256(request.call3Values[i].callData)
                 )
             );
 
