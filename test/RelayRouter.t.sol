@@ -60,15 +60,15 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         );
     bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
         keccak256(
-            "RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+            "RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
     bytes32 public constant _FULL_RELAYER_WITNESS_TYPEHASH =
         keccak256(
-            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)"
+            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)"
         );
     bytes32 public constant _FULL_RELAYER_WITNESS_BATCH_TYPEHASH =
         keccak256(
-            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)"
+            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)"
         );
     bytes32 public constant _PERMIT_BATCH_TRANSFER_FROM_TYPEHASH =
         keccak256(
@@ -79,7 +79,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
         );
     string public constant _RELAYER_WITNESS_TYPE_STRING =
-        "RelayerWitness witness)RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)";
+        "RelayerWitness witness)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)";
 
     ISignatureTransfer.PermitBatchTransferFrom emptyPermit =
         ISignatureTransfer.PermitBatchTransferFrom({
@@ -237,6 +237,8 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             abi.encode(
                 _EIP_712_RELAYER_WITNESS_TYPE_HASH,
                 relayer.addr,
+                alice.addr,
+                address(0),
                 keccak256(abi.encodePacked(call3ValuesHashes))
             )
         );
@@ -257,7 +259,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             alice.addr,
             permit,
             calls,
-            address(0),
+            alice.addr,
             address(0),
             permitSig
         );
@@ -470,7 +472,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             tokens,
             amounts,
             calls,
-            address(0),
+            alice.addr,
             address(0)
         );
 
@@ -553,7 +555,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             tokens,
             amounts,
             calls,
-            address(0),
+            alice.addr,
             address(0)
         );
 
@@ -593,7 +595,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             tokens,
             amounts,
             calls,
-            address(0),
+            alice.addr,
             address(0)
         );
     }
@@ -645,7 +647,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             tokens,
             amounts,
             calls,
-            address(0),
+            bob.addr,
             address(0)
         );
     }
@@ -700,7 +702,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         approvalProxy.permitTransferAndMulticall(
             permits,
             calls,
-            address(0),
+            alice.addr,
             address(0)
         );
 
@@ -768,7 +770,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         approvalProxy.permitTransferAndMulticall(
             permits,
             calls,
-            address(0),
+            alice.addr,
             address(0)
         );
         assertEq(erc20Permit.balanceOf(alice.addr), 0);
@@ -826,7 +828,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         approvalProxy.permitTransferAndMulticall(
             permits,
             calls,
-            address(0),
+            bob.addr,
             address(0)
         );
     }
