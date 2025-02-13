@@ -8,7 +8,6 @@ import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {Call3Value, CallRequest, Result} from "./utils/RelayStructs.sol";
 
 // TODO: add sender to CallRequest struct (confirm with SB)
-// TODO: handle smart contract wallet deposits (check if tx.origin != msg.sender, depositor != address(0))
 
 /// @title  CreditMaster
 /// @author Reservoir

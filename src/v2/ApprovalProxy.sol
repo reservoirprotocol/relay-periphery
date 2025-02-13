@@ -12,8 +12,6 @@ import {TrustlessPermit} from "trustlessPermit/TrustlessPermit.sol";
 import {IRelayRouter} from "./interfaces/IRelayRouter.sol";
 import {Call3Value, Permit, Result} from "./utils/RelayStructs.sol";
 
-// TODO: add refundTo and nftRecipient to permit witness
-
 contract ApprovalProxy is Ownable {
     using SafeERC20 for IERC20;
     using SignatureCheckerLib for address;
@@ -201,9 +199,16 @@ contract ApprovalProxy is Ownable {
             revert RefundToCannotBeZeroAddress();
         }
 
+        // If a permit signature is provided, use it to transfer tokens from user to router
         if (permitSignature.length != 0) {
-            // Use permit to transfer tokens from user to router
-            _handleBatchPermit(user, permit, calls, permitSignature);
+            _handleBatchPermit(
+                user,
+                refundTo,
+                nftRecipient,
+                permit,
+                calls,
+                permitSignature
+            );
         }
 
         // Perform the multicall and send leftover to refundTo
