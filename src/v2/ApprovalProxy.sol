@@ -45,10 +45,10 @@ contract ApprovalProxy is Ownable {
             "Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
     string public constant _RELAYER_WITNESS_TYPE_STRING =
-        "RelayerWitness witness)RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)";
+        "RelayerWitness witness)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
         keccak256(
-            "RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+            "RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
 
     receive() external payable {}
@@ -216,17 +216,24 @@ contract ApprovalProxy is Ownable {
 
     /// @notice Internal function to handle a permit batch transfer
     /// @param user The address of the user
+    /// @param refundTo The address to refund any leftover ETH to
+    /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param permit The permit details
+    /// @param calls The calls to perform
     /// @param permitSignature The signature for the permit
     function _handleBatchPermit(
         address user,
+        address refundTo,
+        address nftRecipient,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
         Call3Value[] calldata calls,
         bytes memory permitSignature
     ) internal {
-        // Create the witness that should be signed over
+        // Create an array of keccak256 hashes of the call3Values
         bytes32[] memory call3ValuesHashes = new bytes32[](calls.length);
         for (uint256 i = 0; i < calls.length; i++) {
+            // Encode the call3Value and hash it
+            // @dev callData must be hashed before encoding since it is a dynamic type
             call3ValuesHashes[i] = keccak256(
                 abi.encode(
                     _CALL3VALUE_TYPEHASH,
@@ -237,10 +244,14 @@ contract ApprovalProxy is Ownable {
                 )
             );
         }
+
+        // Create the witness that should be signed over
         bytes32 witness = keccak256(
             abi.encode(
                 _EIP_712_RELAYER_WITNESS_TYPE_HASH,
                 msg.sender,
+                refundTo,
+                nftRecipient,
                 keccak256(abi.encodePacked(call3ValuesHashes))
             )
         );
