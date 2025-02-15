@@ -176,8 +176,6 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
 
         bytes32 digest = _hashCallRequest(request);
 
-        emit TestDigest(digest);
-
         // Sign request
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(allocator.key, digest);
         bytes memory signature = bytes.concat(r, s, bytes1(v));
