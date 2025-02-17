@@ -16,10 +16,6 @@ import {Call3Value, CallRequest, Result} from "../src/v2/utils/RelayStructs.sol"
 contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
     event Deposit(address from, address token, uint256 value, bytes32 id);
     event CallExecuted(bytes32 digest, address target, bool success);
-    event TestDigest(bytes32 digest);
-    event TestCall3ValueHash(bytes32 call3ValueHash);
-    event TestStructHash(bytes32 structHash);
-    event TestDomainSeparator(bytes32 separator);
     error InvalidSignature();
     error Unauthorized();
 
@@ -139,7 +135,7 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
             tokens,
             amounts,
             calls,
-            address(0),
+            alice.addr,
             address(0)
         );
 
@@ -179,8 +175,6 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
         });
 
         bytes32 digest = _hashCallRequest(request);
-
-        emit TestDigest(digest);
 
         // Sign request
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(allocator.key, digest);
@@ -286,16 +280,14 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
                     request.call3Values[i].target,
                     request.call3Values[i].allowFailure,
                     request.call3Values[i].value,
-                    request.call3Values[i].callData
+                    keccak256(request.call3Values[i].callData)
                 )
             );
 
-            emit TestCall3ValueHash(call3ValueHash);
             call3ValuesHashes[i] = call3ValueHash;
         }
 
         // Get the EIP-712 digest to be signed
-
         bytes32 structHash = keccak256(
             abi.encode(
                 _CALL_REQUEST_TYPEHASH,
@@ -303,8 +295,6 @@ contract CreditMasterTest is Test, BaseRelayTest, EIP712 {
                 request.nonce
             )
         );
-
-        emit TestStructHash(structHash);
 
         digest = _hashTypedData(structHash);
     }

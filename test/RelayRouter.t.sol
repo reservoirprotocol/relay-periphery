@@ -30,6 +30,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
 
     error Unauthorized();
     error InvalidSender();
+    error InvalidSigner();
     error InvalidTarget(address target);
     error ERC20InsufficientAllowance(
         address spender,
@@ -60,15 +61,15 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         );
     bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
         keccak256(
-            "RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+            "RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
     bytes32 public constant _FULL_RELAYER_WITNESS_TYPEHASH =
         keccak256(
-            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)"
+            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)"
         );
     bytes32 public constant _FULL_RELAYER_WITNESS_BATCH_TYPEHASH =
         keccak256(
-            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)"
+            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)"
         );
     bytes32 public constant _PERMIT_BATCH_TRANSFER_FROM_TYPEHASH =
         keccak256(
@@ -79,7 +80,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
         );
     string public constant _RELAYER_WITNESS_TYPE_STRING =
-        "RelayerWitness witness)RelayerWitness(address relayer,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)";
+        "RelayerWitness witness)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)";
 
     ISignatureTransfer.PermitBatchTransferFrom emptyPermit =
         ISignatureTransfer.PermitBatchTransferFrom({
@@ -144,7 +145,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         );
     }
 
-    function testPermitMulticall() public {
+    function testApprovalProxy__Permit2TransferAndMulticall() public {
         // Create the permit
         ISignatureTransfer.TokenPermissions[]
             memory permitted = new ISignatureTransfer.TokenPermissions[](3);
@@ -237,6 +238,8 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             abi.encode(
                 _EIP_712_RELAYER_WITNESS_TYPE_HASH,
                 relayer.addr,
+                alice.addr,
+                address(0),
                 keccak256(abi.encodePacked(call3ValuesHashes))
             )
         );
@@ -257,7 +260,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             alice.addr,
             permit,
             calls,
-            address(0),
+            alice.addr,
             address(0),
             permitSig
         );
@@ -470,7 +473,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             tokens,
             amounts,
             calls,
-            address(0),
+            alice.addr,
             address(0)
         );
 
@@ -553,7 +556,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             tokens,
             amounts,
             calls,
-            address(0),
+            alice.addr,
             address(0)
         );
 
@@ -593,7 +596,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             tokens,
             amounts,
             calls,
-            address(0),
+            alice.addr,
             address(0)
         );
     }
@@ -645,7 +648,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             tokens,
             amounts,
             calls,
-            address(0),
+            bob.addr,
             address(0)
         );
     }
@@ -700,7 +703,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         approvalProxy.permitTransferAndMulticall(
             permits,
             calls,
-            address(0),
+            alice.addr,
             address(0)
         );
 
@@ -768,7 +771,7 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         approvalProxy.permitTransferAndMulticall(
             permits,
             calls,
-            address(0),
+            alice.addr,
             address(0)
         );
         assertEq(erc20Permit.balanceOf(alice.addr), 0);
@@ -826,8 +829,121 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         approvalProxy.permitTransferAndMulticall(
             permits,
             calls,
-            address(0),
+            bob.addr,
             address(0)
+        );
+    }
+
+    function testApprovalProxy__Permit2TransferAndMulticall__MaliciousSolverChangingRefundToAndNftRecipient()
+        public
+    {
+        // Deploy NFT that costs 20 USDC to mint
+        TestERC721_ERC20PaymentToken nft = new TestERC721_ERC20PaymentToken(
+            USDC
+        );
+
+        // Create the permit
+        ISignatureTransfer.TokenPermissions[]
+            memory permitted = new ISignatureTransfer.TokenPermissions[](1);
+        permitted[0] = ISignatureTransfer.TokenPermissions({
+            token: address(erc20_1),
+            amount: 0.1 ether
+        });
+
+        ISignatureTransfer.PermitBatchTransferFrom
+            memory permit = ISignatureTransfer.PermitBatchTransferFrom({
+                permitted: permitted,
+                nonce: 1,
+                deadline: block.timestamp + 100
+            });
+
+        address[] memory path = new address[](2);
+        path[0] = address(erc20_1);
+        path[1] = USDC;
+
+        bytes memory calldata1 = abi.encodeWithSelector(
+            IUniswapV2Router01.swapExactETHForTokens.selector,
+            0,
+            path,
+            alice.addr,
+            block.timestamp
+        );
+        bytes memory calldata2 = abi.encodeWithSelector(
+            IERC20.approve.selector,
+            address(nft),
+            type(uint256).max
+        );
+        bytes memory calldata3 = abi.encodeWithSelector(
+            nft.mint.selector,
+            alice.addr,
+            10
+        );
+
+        Call3Value[] memory calls = new Call3Value[](3);
+        calls[0] = Call3Value({
+            target: ROUTER_V2,
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
+        calls[1] = Call3Value({
+            target: USDC,
+            allowFailure: false,
+            value: 0,
+            callData: calldata2
+        });
+        calls[2] = Call3Value({
+            target: address(nft),
+            allowFailure: false,
+            value: 0,
+            callData: calldata3
+        });
+
+        // Get the witness
+        bytes32[] memory call3ValuesHashes = new bytes32[](calls.length);
+        for (uint256 i = 0; i < calls.length; i++) {
+            call3ValuesHashes[i] = keccak256(
+                abi.encode(
+                    _CALL3VALUE_TYPEHASH,
+                    calls[i].target,
+                    calls[i].allowFailure,
+                    calls[i].value,
+                    keccak256(calls[i].callData)
+                )
+            );
+        }
+
+        bytes32 witness = keccak256(
+            abi.encode(
+                _EIP_712_RELAYER_WITNESS_TYPE_HASH,
+                relayer.addr,
+                alice.addr,
+                alice.addr,
+                keccak256(abi.encodePacked(call3ValuesHashes))
+            )
+        );
+
+        // Get the permit signature
+        bytes memory permitSig = getPermitBatchWitnessSignature(
+            permit,
+            address(approvalProxy),
+            alice.key,
+            _FULL_RELAYER_WITNESS_BATCH_TYPEHASH,
+            witness,
+            DOMAIN_SEPARATOR
+        );
+
+        // Call the router as the relayer
+        // Relayer tries to replace the refundTo and nftRecipient with their address
+        vm.expectRevert(InvalidSigner.selector);
+        vm.prank(relayer.addr);
+        approvalProxy.permit2TransferAndMulticall(
+            alice.addr,
+            permit,
+            calls,
+            relayer.addr,
+            relayer.addr,
+            permitSig
         );
     }
 
