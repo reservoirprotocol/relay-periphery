@@ -17,7 +17,7 @@ contract BaseDeployer is Script {
     address constant ERC20_ROUTER = 0xE0B062D028236FA09Fe33dB8019FFEEEe6bF79Ed;
     address constant MULTICALLER_ARACHNID_CREATE2_FACTORY =
         0xB0E22F8B026c5dc4b0Bc33eF4C5d3231544aEE3e;
-    address constant ERC20_ROUTER_ARACHNID_CREATE2_FACTORY = 
+    address constant ERC20_ROUTER_ARACHNID_CREATE2_FACTORY =
         0x83095Af87DE31eF97ECCa8312493F42547A5ff2C;
     address constant APPROVAL_PROXY_ARACHNID_CREATE2_FACTORY =
         0xcdf11EF8FeB47C9a9498c4F89D71f1768fEADec7;
@@ -123,6 +123,10 @@ contract BaseDeployer is Script {
         Kekchain,
         EclipseTestnet,
         ZeroTestnet,
+        ApeChain,
+        UniChain,
+        Mantle,
+        BeraChain,
         Null
     }
 
@@ -209,7 +213,11 @@ contract BaseDeployer is Script {
         forks[Chains.Kekchain] = "kekchain";
         forks[Chains.EclipseTestnet] = "eclipse_testnet";
         forks[Chains.ZeroTestnet] = "zero_testnet";
-        
+        forks[Chains.ApeChain] = "apechain";
+        forks[Chains.UniChain] = "unichain";
+        forks[Chains.Mantle] = "mantle";
+        forks[Chains.BeraChain] = "berachain";
+
         // ImmutableCreate2Factory at 0x0000000000FFe8B47B3e2130213B802212439497 cannot be deployed to following chains
         noImmutableCreate2Factory[288] = true; // Boba
         noImmutableCreate2Factory[33979] = true; // Funki
