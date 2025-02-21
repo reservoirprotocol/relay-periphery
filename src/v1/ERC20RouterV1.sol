@@ -7,6 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "solady/src/utils/ReentrancyGuard.sol";
 import {IAllowanceTransfer} from "permit2-relay/src/interfaces/IAllowanceTransfer.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
@@ -16,7 +17,7 @@ struct RelayerWitness {
     address relayer;
 }
 
-contract ERC20Router is Ownable, Tstorish {
+contract ERC20Router is Ownable, Tstorish, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
@@ -43,7 +44,7 @@ contract ERC20Router is Ownable, Tstorish {
         0x7777777F279eba3d3Ad8F4E708545291A6fDBA8B;
 
     IPermit2 private immutable PERMIT2;
-    address private immutable MULTICALLER;
+    address private MULTICALLER;
 
     string public constant _RELAYER_WITNESS_TYPE_STRING =
         "RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)";
@@ -71,6 +72,10 @@ contract ERC20Router is Ownable, Tstorish {
         _send(msg.sender, address(this).balance);
     }
 
+    function setMulticaller(address multicaller) external onlyOwner {
+        MULTICALLER = multicaller;
+    }
+
     /// @notice Pull user ERC20 tokens through a signed batch permit
     ///         and perform an arbitrary multicall. Pass in an empty
     ///         permitSignature to only perform the multicall.
@@ -90,11 +95,14 @@ contract ERC20Router is Ownable, Tstorish {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable returns (bytes memory) {
+    ) external payable nonReentrant returns (bytes memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
         }
+
+        // Set the recipient in storage
+        _setRecipient(refundTo);
 
         if (permitSignature.length != 0) {
             // Use permit to transfer tokens from user to router
@@ -108,6 +116,9 @@ contract ERC20Router is Ownable, Tstorish {
             values,
             refundTo
         );
+
+        // Clear the recipient in storage
+        _clearRecipient();
 
         return data;
     }
@@ -126,7 +137,7 @@ contract ERC20Router is Ownable, Tstorish {
         bytes[] calldata datas,
         uint256[] calldata values,
         address refundTo
-    ) external payable returns (bytes memory) {
+    ) external payable nonReentrant returns (bytes memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -153,7 +164,10 @@ contract ERC20Router is Ownable, Tstorish {
     /// @dev Should be included in the multicall if the router is expecting to receive tokens
     /// @param token The address of the ERC20 token
     /// @param refundTo The address to refund the tokens to
-    function cleanupERC20(address token, address refundTo) external {
+    function cleanupERC20(
+        address token,
+        address refundTo
+    ) external nonReentrant {
         // Check the router's balance for the token
         uint256 balance = IERC20(token).balanceOf(address(this));
 
