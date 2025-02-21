@@ -87,3 +87,34 @@ kekchain = "https://rpc-kekchain-lvvulci8ai.t.conduit.xyz"
 eclipse_testnet = "https://testnet.dev2.eclipsenetwork.xyz"
 zero_testnet = "https://rpc.zerion.io/v1/zero-sepolia"
 world_chain = "https://worldchain-mainnet.g.alchemy.com/public"
+apechain = "https://apechain.calderachain.xyz/http"
+unichain = "https://mainnet.unichain.org"
+mantle = "https://rpc.mantle.xyz"
+berachain = "https://rpc.berachain.com"
+
+
+[etherscan]
+# Mainnets
+mainnet = { key = "${ETHERSCAN_API_KEY_ETHEREUM}" }
+optimism = { key = "${ETHERSCAN_API_KEY_OPTIMISM}" }
+polygon = { key = "${ETHERSCAN_API_KEY_POLYGON}" }
+gnosis = { key = "${ETHERSCAN_API_KEY_GNOSIS}" }
+linea = { key = "${ETHERSCAN_API_KEY_LINEA}" }
+bsc = { key = "${ETHERSCAN_API_KEY_BSC}" }
+scroll = { key = "${ETHERSCAN_API_KEY_SCROLL}" }
+polygon_zkevm = { key = "${ETHERSCAN_API_KEY_POLYGON_ZKEVM}" }
+zksync = { key = "0x", url = "https://block-explorer-api.mainnet.zksync.io/api" }
+astar_zkevm = { key = "0x", url = "https://astar-zkevm.explorer.startale.com/api" }
+base = { key = "${ETHERSCAN_API_KEY_BASE}" }
+arbitrum = { key = "${ETHERSCAN_API_KEY_ARBITRUM}" }
+arbitrum_nova = { key = "${ETHERSCAN_API_KEY_ARBITRUM_NOVA}" }
+zora = { key = "0x", url = "https://explorer.zora.energy/api" }
+apex = { key = "0x", url = "https://explorer.apex.proofofplay.com/api" }
+blast = { key = "${ETHERSCAN_API_KEY_BLAST}" }
+# Testnets
+sepolia = { key = "${ETHERSCAN_API_KEY_SEPOLIA}" }
+base_sepolia = { key = "${ETHERSCAN_API_KEY_BASE_SEPOLIA}" }
+blast_sepolia = { key = "${ETHERSCAN_API_KEY_BLAST_SEPOLIA}" }
+zora_sepolia = { key = "0x", url = "https://sepolia.explorer.zora.energy/api" }
+barret = { key = "${ETHERSCAN_API_KEY_ARBITRUM}", url = "https://70800.testnet.routescan.io/api" }
+b3_sepolia = { key = "${ETHERSCAN_API_KEY_ARBITRUM}", url = "https://sepolia.explorer.b3.fun/api" }
