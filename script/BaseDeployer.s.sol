@@ -127,6 +127,8 @@ contract BaseDeployer is Script {
         UniChain,
         Mantle,
         BeraChain,
+        Celo,
+        Soneium,
         Null
     }
 
@@ -217,6 +219,8 @@ contract BaseDeployer is Script {
         forks[Chains.UniChain] = "unichain";
         forks[Chains.Mantle] = "mantle";
         forks[Chains.BeraChain] = "berachain";
+        forks[Chains.Celo] = "celo";
+        forks[Chains.Soneium] = "soneium";
 
         // ImmutableCreate2Factory at 0x0000000000FFe8B47B3e2130213B802212439497 cannot be deployed to following chains
         noImmutableCreate2Factory[288] = true; // Boba

@@ -26,11 +26,11 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
     function createDeployMultichain() private {
         /// @dev add new chain(s) below and update array length accordingly
         /// NOTE: contracts have already been deployed to commented out chains. Make sure to also add your chain to the Chain enum and forks mapping in BaseDeployer.s.sol
-        Chains[] memory deployForks = new Chains[](4);
-        deployForks[0] = Chains.Null; // Amoy
-        deployForks[1] = Chains.Base;
-        deployForks[2] = Chains.Arbitrum;
-        deployForks[3] = Chains.Optimism;
+        Chains[] memory deployForks = new Chains[](6);
+        // deployForks[0] = Chains.Mainnet; // Amoy
+        // deployForks[1] = Chains.Base;
+        // deployForks[2] = Chains.Arbitrum;
+        // deployForks[3] = Chains.Optimism;
         // deployForks[4] = Chains.Null; // DeBank testnet *
         // deployForks[5] = Chains.Null; // Manta testnet *
         // deployForks[6] = Chains.Null; // Barret **
@@ -96,6 +96,56 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         // deployForks[66] = Chains.UniChain;
         // deployForks[67] = Chains.Mantle;
         // deployForks[68] = Chains.BeraChain;
+        // deployForks[0] = Chains.Null; // Linea doesn't support Cancun
+        // deployForks[1] = Chains.Polygon;
+        // deployForks[2] = Chains.Gnosis;
+        // deployForks[3] = Chains.Bsc;
+        // deployForks[4] = Chains.Scroll;
+        // deployForks[5] = Chains.PolygonZkevm;
+        // deployForks[6] = Chains.ArbitrumNova;
+        // deployForks[7] = Chains.Blast;
+        // deployForks[8] = Chains.Sepolia;
+        // deployForks[9] = Chains.BaseSepolia;
+        // deployForks[10] = Chains.BlastSepolia;
+
+        // opensea
+        deployForks[0] = Chains.BeraChain;
+        deployForks[1] = Chains.Avalanche;
+        deployForks[2] = Chains.ApeChain;
+        deployForks[3] = Chains.Soneium;
+        deployForks[4] = Chains.Zora;
+        deployForks[5] = Chains.B3;
+
+        // blockscout
+        // deployForks[0] = Chains.Boba;
+        // deployForks[1] = Chains.Hekla;
+        // deployForks[2] = Chains.OpSepolia;
+        // deployForks[3] = Chains.B3;
+        // deployForks[4] = Chains.ZoraSepolia;
+        // deployForks[5] = Chains.FunkiTestnet;
+        // deployForks[6] = Chains.LiskSepolia;
+        // deployForks[7] = Chains.Cloud;
+        // deployForks[8] = Chains.Game7Testnet;
+        // deployForks[9] = Chains.ShapeSepolia;
+        // deployForks[10] = Chains.ArbitrumBlueberry;
+        // deployForks[11] = Chains.Redstone;
+        // deployForks[12] = Chains.Rari;
+        // deployForks[13] = Chains.Avalanche;
+        // deployForks[14] = Chains.Zora;
+        // deployForks[15] = Chains.Ancient8;
+        // deployForks[16] = Chains.Xai;
+        // deployForks[17] = Chains.Apex;
+        // deployForks[18] = Chains.Funki;
+        // deployForks[19] = Chains.Lisk;
+        // deployForks[20] = Chains.Ham;
+        // deployForks[21] = Chains.OnchainPoints;
+        // deployForks[22] = Chains.Taiko;
+        // deployForks[23] = Chains.Cyber;
+        // deployForks[24] = Chains.Mint;
+        // deployForks[25] = Chains.ApeChain;
+        // deployForks[26] = Chains.UniChain;
+        // deployForks[27] = Chains.Mantle;
+        // deployForks[28] = Chains.BeraChain;
 
         // No Cancun:
         // Arbitrum Sepolia
@@ -125,7 +175,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
                 multicaller,
                 owner
             );
-            // deployApprovalProxy(erc20Router);
+            deployApprovalProxy(erc20Router);
             // if (vm.envBool("IS_TESTNET") == true) {
             //     deployRelayReceiver(TESTNET_SOLVER);
             // } else {
