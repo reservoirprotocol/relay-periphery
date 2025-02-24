@@ -7,7 +7,7 @@ pragma solidity ^0.8.4;
  * @notice Contract that allows for efficient aggregation
  *         of multiple calls in a single transaction.
  */
-contract Multicaller {
+contract MulticallerInternal {
     // =============================================================
     //                            ERRORS
     // =============================================================
@@ -32,12 +32,12 @@ contract Multicaller {
      *                 If anything else, remaining ETH will be refunded to `refundTo`.
      * @return An array of the returndata from each call.
      */
-    function aggregate(
+    function _aggregate(
         address[] calldata targets,
         bytes[] calldata data,
         uint256[] calldata values,
         address refundTo
-    ) external payable returns (bytes[] memory) {
+    ) internal returns (bytes[] memory) {
         assembly {
             if iszero(
                 and(
