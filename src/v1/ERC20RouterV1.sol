@@ -6,7 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "solady/src/utils/ReentrancyGuard.sol";
+import {ReentrancyGuardMsgSender} from "./ReentrancyGuardMsgSender.sol";
 import {IAllowanceTransfer} from "permit2-relay/src/interfaces/IAllowanceTransfer.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
@@ -15,13 +15,14 @@ struct RelayerWitness {
     address relayer;
 }
 
-contract ERC20Router is Tstorish, ReentrancyGuard, MulticallerInternal {
+contract ERC20Router is
+    Tstorish,
+    ReentrancyGuardMsgSender,
+    MulticallerInternal
+{
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
-
-    /// @notice Revert if array lengths do not match
-    error ArrayLengthsMismatch();
 
     /// @notice Revert if this contract is set as the recipient
     error InvalidRecipient(address recipient);
@@ -36,7 +37,7 @@ contract ERC20Router is Tstorish, ReentrancyGuard, MulticallerInternal {
     error NoRecipientSet();
 
     uint256 RECIPIENT_STORAGE_SLOT =
-        uint256(keccak256("ERC20Router.recipient"));
+        uint256(keccak256("ERC20Router.recipient")) - 1;
 
     address constant ZORA_REWARDS_V1 =
         0x7777777F279eba3d3Ad8F4E708545291A6fDBA8B;
@@ -48,9 +49,7 @@ contract ERC20Router is Tstorish, ReentrancyGuard, MulticallerInternal {
     bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
         keccak256("RelayerWitness(address relayer)");
 
-    constructor(
-        address permit2
-    ) Tstorish() {
+    constructor(address permit2) Tstorish() {
         // Set the address of the Permit2 contract
         PERMIT2 = IPermit2(permit2);
     }
@@ -76,7 +75,7 @@ contract ERC20Router is Tstorish, ReentrancyGuard, MulticallerInternal {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable nonReentrant returns (bytes memory) {
+    ) external payable nonReentrant returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -91,12 +90,7 @@ contract ERC20Router is Tstorish, ReentrancyGuard, MulticallerInternal {
         }
 
         // Perform the multicall and send leftover to refundTo
-        bytes memory data = _aggregate(
-            targets,
-            datas,
-            values,
-            refundTo
-        );
+        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
 
         // Clear the recipient in storage
         _clearRecipient();
@@ -109,7 +103,8 @@ contract ERC20Router is Tstorish, ReentrancyGuard, MulticallerInternal {
     /// @dev    If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
     ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in refundTo
     ///         If refundTo is address(this), be sure to transfer tokens out of the router as part of the multicall
-    ///         This function is called `delegatecallMulticall` to not break integrations with the previous router
+    ///         This function does not perform a delegatecall. It is called `delegatecallMulticall` to not break
+    ///         integrations with the previous router.
     /// @param targets The addresses of the contracts to call
     /// @param datas The calldata for each call
     /// @param values The value to send with each call
@@ -119,7 +114,7 @@ contract ERC20Router is Tstorish, ReentrancyGuard, MulticallerInternal {
         bytes[] calldata datas,
         uint256[] calldata values,
         address refundTo
-    ) external payable nonReentrant returns (bytes memory) {
+    ) external payable nonReentrant returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -136,12 +131,7 @@ contract ERC20Router is Tstorish, ReentrancyGuard, MulticallerInternal {
         _setRecipient(refundTo);
 
         // Perform the multicall
-        bytes memory data = _aggregate(
-            targets,
-            datas,
-            values,
-            refundTo
-        );
+        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
 
         // Clear the recipient in storage
         _clearRecipient();

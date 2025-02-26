@@ -31,7 +31,7 @@ contract RelayRouter is Multicall3, ReentrancyGuard, Tstorish {
     error ArrayLengthsMismatch();
 
     uint256 RECIPIENT_STORAGE_SLOT =
-        uint256(keccak256("RelayRouter.recipient"));
+        uint256(keccak256("RelayRouter.recipient")) - 1;
 
     constructor() Tstorish() {}
 
@@ -77,7 +77,7 @@ contract RelayRouter is Multicall3, ReentrancyGuard, Tstorish {
         address[] calldata tokens,
         address[] calldata recipients,
         uint256[] calldata amounts
-    ) public virtual nonReentrant {
+    ) public virtual {
         // Revert if array lengths do not match
         if (
             tokens.length != amounts.length ||
@@ -107,7 +107,7 @@ contract RelayRouter is Multicall3, ReentrancyGuard, Tstorish {
     function cleanupNative(
         uint256 amount,
         address recipient
-    ) public virtual nonReentrant {
+    ) public virtual {
         // If recipient is address(0), set to msg.sender
         address recipientAddr = recipient == address(0)
             ? msg.sender

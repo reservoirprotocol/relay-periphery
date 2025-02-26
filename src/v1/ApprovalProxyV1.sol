@@ -52,7 +52,7 @@ contract ApprovalProxy is Ownable {
         bytes[] calldata datas,
         uint256[] calldata values,
         address refundTo
-    ) external payable returns (bytes memory) {
+    ) external payable returns (bytes[] memory) {
         // Revert if array lengths do not match
         if ((tokens.length != amounts.length)) {
             revert ArrayLengthsMismatch();
@@ -68,10 +68,12 @@ contract ApprovalProxy is Ownable {
             IERC20(tokens[i]).safeTransferFrom(msg.sender, router, amounts[i]);
         }
 
-        // Call delegatecallMulticall on the router. The router will perform a
-        // delegatecall to the Multicaller.
-        // @dev msg.sender for the calls to targets will be the router
-        bytes memory data = IERC20Router(router).delegatecallMulticall{
+        // Call delegatecallMulticall on the router.
+        // @dev The router does not perform a delegatecall. It is called
+        //      `delegatecallMulticall` to not break integrations with the
+        //      previous router. Note that msg.sender for the calls to targets
+        //      will be the router.
+        bytes[] memory data = IERC20Router(router).delegatecallMulticall{
             value: msg.value
         }(targets, datas, values, refundTo);
 

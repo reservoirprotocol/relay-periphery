@@ -160,13 +160,6 @@ contract MulticallerInternal {
     }
 
     /**
-     * @dev For receiving ETH.
-     *      Does nothing and returns nothing.
-     *      Called instead of `fallback()` if the calldatasize is zero.
-     */
-    receive() external payable {}
-
-    /**
      * @dev Decompresses the calldata and performs a delegatecall
      *      with the decompressed calldata to itself.
      *

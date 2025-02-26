@@ -12,14 +12,14 @@ interface IERC20Router {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable returns (bytes memory);
+    ) external payable returns (bytes[] memory);
 
     function delegatecallMulticall(
         address[] calldata targets,
         bytes[] calldata datas,
         uint256[] calldata values,
         address refundTo
-    ) external payable returns (bytes memory);
+    ) external payable returns (bytes[] memory);
 
     function cleanupERC20(address token, address refundTo) external;
 }
