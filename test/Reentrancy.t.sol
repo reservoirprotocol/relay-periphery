@@ -2,11 +2,16 @@
 pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Multicaller} from "../src/v1/Multicaller.sol";
 import {ERC20Router} from "../src/v1/ERC20RouterV1.sol";
 import {RelayRouter} from "../src/v2/RelayRouter.sol";
 import {Call3Value, Permit, Result} from "../src/v2/utils/RelayStructs.sol";
 import {Attacker} from "./mocks/Attacker.sol";
+import {BaseRelayTest} from "./base/BaseRelayTest.sol";
+import {IUniswapV2Router01} from "./interfaces/IUniswapV2Router02.sol";
+import {TestERC721_ERC20PaymentToken} from "./mocks/TestERC721_ERC20PaymentToken.sol";
+
 
 interface iM {
     function multicall(
@@ -18,55 +23,116 @@ interface iM {
     function setApprovalForAll(address operator, bool approved) external;
 }
 
-contract ReentrancyTest is Test {
+contract ReentrancyTest is Test, BaseRelayTest {
     error Unauthorized();
     error Reentrancy();
-    address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    error InvalidMsgSender(address msgSender, address expectedMsgSender);
 
     address routerV1;
-    address updatedRouterV1;
+    ERC20Router updatedRouterV1;
     address routerV2;
     Attacker attacker1;
     Attacker attacker2;
     Attacker attacker3;
-    address solver = 0xf70da97812CB96acDF810712Aa562db8dfA3dbEF;
     address multicaller;
 
-    function setUp() public {
+    function setUp() public override{
+        super.setUp();
         console.log("SETUP");
         routerV1 = 0xA1BEa5fe917450041748Dbbbe7E9AC57A4bBEBaB;
-        updatedRouterV1 = address(
-            new ERC20Router(PERMIT2, address(0), address(this))
-        );
-        Multicaller multicaller = new Multicaller();
-        ERC20Router(payable(updatedRouterV1)).setMulticaller(
-            address(multicaller)
-        );
+        updatedRouterV1 =
+            new ERC20Router(PERMIT2);
         routerV2 = address(new RelayRouter());
         // Attempt to reenter in ERC20Router
         attacker1 = new Attacker(
             address(routerV1),
-            address(multicaller),
             true,
-            false,
             false
         );
         // Attempt to reenter in RelayRouter
         attacker2 = new Attacker(
             address(routerV2),
-            address(multicaller),
-            false,
-            true,
-            false
-        );
-        // Attempt to reenter in Multicaller
-        attacker3 = new Attacker(
-            address(routerV1),
-            address(multicaller),
-            false,
             false,
             true
         );
+        attacker3 = new Attacker(
+            address(updatedRouterV1),
+            true,
+            false
+        );
+    }
+
+    function testSuccessUpdatedRouterV1() public {
+        // Deploy NFT that costs 20 USDC to mint
+        TestERC721_ERC20PaymentToken nft = new TestERC721_ERC20PaymentToken(
+            USDC
+        );
+
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+
+        bytes memory calldata1 = abi.encodeWithSelector(
+            IUniswapV2Router01.swapExactETHForTokens.selector,
+            0,
+            path,
+            address(updatedRouterV1),
+            block.timestamp
+        );
+        bytes memory calldata2 = abi.encodeWithSelector(
+            IERC20.approve.selector,
+            address(nft),
+            type(uint256).max
+        );
+        bytes memory calldata3 = abi.encodeWithSelector(
+            nft.mint.selector,
+            alice.addr,
+            10
+        );
+
+        address[] memory targets = new address[](3);
+        targets[0] = address(ROUTER_V2);
+        targets[1] = address(USDC);
+        targets[2] = address(nft);
+
+        bytes[] memory datas = new bytes[](3);
+        datas[0] = calldata1;
+        datas[1] = calldata2;
+        datas[2] = calldata3;
+
+        uint256[] memory values = new uint256[](3);
+        values[0] = 1 ether;
+        values[1] = 0;
+        values[2] = 0;
+
+        uint256 relaySolverBalanceBefore = relaySolver.balance;
+        uint256 routerUSDCBalanceBefore = IERC20(USDC).balanceOf(
+            address(updatedRouterV1)
+        );
+
+        vm.prank(relaySolver);
+        updatedRouterV1.delegatecallMulticall{value: 1 ether}(targets, datas, values, alice.addr);
+
+        uint256 relaySolverBalanceAfterMulticall = relaySolver.balance;
+        uint256 routerUSDCBalanceAfterMulticall = IERC20(USDC).balanceOf(
+            address(updatedRouterV1)
+        );
+
+        assertEq(relaySolverBalanceBefore - relaySolverBalanceAfterMulticall, 1 ether);
+        assertGt(routerUSDCBalanceAfterMulticall, routerUSDCBalanceBefore);
+        assertEq(nft.ownerOf(10), alice.addr);
+
+        vm.prank(relaySolver);
+        updatedRouterV1.cleanupERC20(USDC, alice.addr);
+
+        uint256 aliceUSDCBalanceAfterCleanup = IERC20(USDC).balanceOf(
+            alice.addr
+        );
+        uint256 routerUSDCBalanceAfterCleanup = IERC20(USDC).balanceOf(
+            address(this)
+        );
+        assertEq(aliceUSDCBalanceAfterCleanup, routerUSDCBalanceAfterMulticall);
+        assertEq(routerUSDCBalanceAfterCleanup, 0);
     }
 
     //this is what can happen if the attacker waponized the bug
@@ -112,17 +178,9 @@ contract ReentrancyTest is Test {
 
         targets[0] = address(attacker3);
 
+        address attacker3_target = attacker3.target();
+        console.log("ATTACKER3 TARGET", attacker3_target);
         bytes memory payloadV3 = abi.encodeWithSelector(
-            ERC20Router.delegatecallMulticall.selector,
-            targets,
-            datas,
-            values,
-            address(0)
-        );
-
-        targets[0] = address(attacker1);
-
-        bytes memory payloadV4 = abi.encodeWithSelector(
             ERC20Router.delegatecallMulticall.selector,
             targets,
             datas,
@@ -137,7 +195,7 @@ contract ReentrancyTest is Test {
         uint256 attacker3_initial_balance = address(attacker3).balance;
         uint256 routerV1_initial_balance = routerV1.balance;
         uint256 routerV2_initial_balance = routerV2.balance;
-        uint256 updatedRouterV1_initial_balance = updatedRouterV1.balance;
+        uint256 updatedRouterV1_initial_balance = address(updatedRouterV1).balance;
 
         console.log("ATTACKER1 INITIAL BALANCE", attacker1_initial_balance);
         console.log("ATTACKER2 INITIAL BALANCE", attacker2_initial_balance);
@@ -150,7 +208,7 @@ contract ReentrancyTest is Test {
         );
 
         // Original vulnerability
-        vm.startPrank(solver);
+        vm.startPrank(relaySolver);
         (success, ) = routerV1.call{value: relayed_value}(payloadV1);
         if (!success) {
             revert();
@@ -164,15 +222,8 @@ contract ReentrancyTest is Test {
         }
 
         // Attempt to reenter in ERC20Router
-        vm.expectRevert(Reentrancy.selector);
-        (success, ) = updatedRouterV1.call{value: relayed_value}(payloadV3);
-        if (!success) {
-            revert();
-        }
-
-        // Attempt to reenter in Multicaller
-        vm.expectRevert(Reentrancy.selector);
-        (success, ) = updatedRouterV1.call{value: relayed_value}(payloadV4);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMsgSender.selector, relaySolver, address(attacker3)));
+        (success, ) = address(updatedRouterV1).call{value: relayed_value}(payloadV3);
         if (!success) {
             revert();
         }
@@ -188,12 +239,12 @@ contract ReentrancyTest is Test {
             attacker2_initial_balance;
         uint256 attacker3_profit = attacker3_final_balance -
             attacker3_initial_balance;
-
+       
         uint256 routerV1_difference = routerV1.balance -
             routerV1_initial_balance;
         uint256 routerV2_difference = routerV2.balance -
             routerV2_initial_balance;
-        uint256 updatedRouterV1_difference = updatedRouterV1.balance -
+        uint256 updatedRouterV1_difference = address(updatedRouterV1).balance -
             updatedRouterV1_initial_balance;
 
         console.log("ATTACKER1 PROFIT", attacker1_profit);
@@ -205,7 +256,6 @@ contract ReentrancyTest is Test {
 
         assertEq(attacker1_profit, relayed_value);
         assertEq(attacker2_profit, 0);
-        assertEq(attacker3_profit, 0);
         assertEq(routerV1_difference, 0);
         assertEq(routerV2_difference, 0);
         assertEq(updatedRouterV1_difference, 0);

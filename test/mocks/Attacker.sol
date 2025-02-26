@@ -28,24 +28,18 @@ interface iM {
 
 contract Attacker {
     address public target;
-    address public multicaller;
     bool reentrant;
     bool callV1;
     bool callV2;
-    bool reenterMulticall;
 
     constructor(
         address _target,
-        address _multicaller,
         bool _callV1,
-        bool _callV2,
-        bool _reenterMulticall
+        bool _callV2
     ) {
         target = _target;
-        multicaller = _multicaller;
         callV1 = _callV1;
         callV2 = _callV2;
-        reenterMulticall = _reenterMulticall;
     }
 
     receive() external payable {
@@ -83,13 +77,6 @@ contract Attacker {
                 });
 
                 iM(target).multicall(calls, address(this), address(this));
-            } else if (reenterMulticall) {
-                iM(multicaller).aggregate(
-                    targets,
-                    datas,
-                    values,
-                    address(this)
-                );
             }
         }
     }
