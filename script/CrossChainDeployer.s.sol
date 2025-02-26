@@ -17,6 +17,12 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
 
     bytes32 constant salt = bytes32(uint256(3));
 
+    // 0xaaaaaae6F6BD313e62907E1c0010795cAed22b2b
+    bytes32 constant APPROVAL_PROXY_V1_SALT = 0x00000000000000000000000000000000000000005bc677c8df4fe9855e0200c0;
+
+    // 0xeEEeEEEb40Ca06d60444256905f6287321462acC
+    bytes32 constant ERC20_ROUTER_V1_SALT = 0x00000000000000000000000000000000000000004e330ef61479baa6450100a8;
+
     function setUp() public {}
 
     function run() public {
@@ -26,7 +32,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
     function createDeployMultichain() private {
         /// @dev add new chain(s) below and update array length accordingly
         /// NOTE: contracts have already been deployed to commented out chains. Make sure to also add your chain to the Chain enum and forks mapping in BaseDeployer.s.sol
-        Chains[] memory deployForks = new Chains[](6);
+        Chains[] memory deployForks = new Chains[](1);
         // deployForks[0] = Chains.Mainnet; // Amoy
         // deployForks[1] = Chains.Base;
         // deployForks[2] = Chains.Arbitrum;
@@ -115,6 +121,9 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         deployForks[3] = Chains.Soneium;
         deployForks[4] = Chains.Zora;
         deployForks[5] = Chains.B3;
+        deployForks[6] = Chains.Arbitrum;
+        deployForks[7] = Chains.Optimism;
+        deployForks[8] = Chains.Mainnet;
 
         // blockscout
         // deployForks[0] = Chains.Boba;
@@ -169,11 +178,9 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
 
             vm.startBroadcast(owner);
             // address permit2 = deployPermit2();
-            address multicaller = deployMulticaller();
+            // address multicaller = deployMulticaller();
             address erc20Router = deployERC20Router(
-                PERMIT2,
-                multicaller,
-                owner
+                PERMIT2
             );
             deployApprovalProxy(erc20Router);
             // if (vm.envBool("IS_TESTNET") == true) {
@@ -280,7 +287,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
                         abi.encodePacked(
                             bytes1(0xff),
                             FOUNDRY_CREATE2_FACTORY,
-                            salt,
+                            APPROVAL_PROXY_V1_SALT,
                             keccak256(
                                 abi.encodePacked(
                                     type(ApprovalProxy).creationCode,
@@ -293,6 +300,13 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
             )
         );
 
+        console2.log("approval proxy init code hash: ");
+        console2.logBytes32(keccak256(
+                                abi.encodePacked(
+                                    type(ApprovalProxy).creationCode,
+                                    abi.encode(owner, router)
+                                )));
+
         if (_hasBeenDeployed(predictedAddress)) {
             console2.log(
                 "ApprovalProxy has already been deployed at: ",
@@ -302,7 +316,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         }
 
         // Reuse salt for simplicity
-        ApprovalProxy approvalProxy = new ApprovalProxy{salt: salt}(
+        ApprovalProxy approvalProxy = new ApprovalProxy{salt: APPROVAL_PROXY_V1_SALT}(
             owner,
             router
         );
@@ -321,9 +335,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
 
     /// @notice Deploys the ERC20 Router contract to the given chain
     function deployERC20Router(
-        address permit2,
-        address multicaller,
-        address owner
+        address permit2
     ) public returns (address) {
         console2.log("Deploying ERC20 Router...");
 
@@ -334,11 +346,11 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
                         abi.encodePacked(
                             bytes1(0xff),
                             FOUNDRY_CREATE2_FACTORY,
-                            salt,
+                            ERC20_ROUTER_V1_SALT,
                             keccak256(
                                 abi.encodePacked(
                                     type(ERC20Router).creationCode,
-                                    abi.encode(permit2, multicaller, owner)
+                                    abi.encode(permit2)
                                 )
                             )
                         )
@@ -346,6 +358,14 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
                 )
             )
         );
+
+        console2.log("router init code hash: ");
+        console2.logBytes32(keccak256(
+                                abi.encodePacked(
+                                    type(ERC20Router).creationCode,
+                                    abi.encode(permit2)
+                )
+            ));
 
         if (_hasBeenDeployed(predictedAddress)) {
             console2.log(
@@ -355,10 +375,8 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
             return predictedAddress;
         }
 
-        ERC20Router router = new ERC20Router{salt: salt}(
-            permit2,
-            multicaller,
-            owner
+        ERC20Router router = new ERC20Router{salt: ERC20_ROUTER_V1_SALT}(
+            permit2
         );
 
         if (address(router) != predictedAddress) {
@@ -486,7 +504,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         }
 
         if (!_hasBeenDeployed(PERMIT2)) {
-            console.log(
+            console2.log(
                 "Permit2 has not been deployed at 0x000000000022D473030F116dDEE9F6B43aC78BA3"
             );
             return address(0);
@@ -496,7 +514,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
             !_hasBeenDeployed(MULTICALLER) &&
             !_hasBeenDeployed(MULTICALLER_ARACHNID_CREATE2_FACTORY)
         ) {
-            console.log("Multicaller has not been deployed");
+            console2.log("Multicaller has not been deployed");
             return address(0);
         }
 
