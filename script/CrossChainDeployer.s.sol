@@ -17,11 +17,11 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
 
     bytes32 constant salt = bytes32(uint256(3));
 
-    // 0xaaaaaae6F6BD313e62907E1c0010795cAed22b2b
-    bytes32 constant APPROVAL_PROXY_V1_SALT = 0x00000000000000000000000000000000000000005bc677c8df4fe9855e0200c0;
+    // 0xaaaaaaae92Cc1cEeF79a038017889fDd26D23D4d
+    bytes32 constant APPROVAL_PROXY_V1_SALT = 0x0000000000000000000000000000000000000000a5b08fa2e0ed3bdbef020080;
 
-    // 0xeEEeEEEb40Ca06d60444256905f6287321462acC
-    bytes32 constant ERC20_ROUTER_V1_SALT = 0x00000000000000000000000000000000000000004e330ef61479baa6450100a8;
+    // 0xeeeeee9eC4769A09a76A83C7bC42b185872860eE
+    bytes32 constant ERC20_ROUTER_V1_SALT = 0x00000000000000000000000000000000000000000e00071c143ecf3b430400e0;
 
     function setUp() public {}
 
@@ -71,7 +71,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         // deployForks[35] = Chains.Rari;
         // deployForks[36] = Chains.Null; // ZkSync
         // deployForks[37] = Chains.Degen;
-        // deployForks[38] = Chains.Linea; // Linea
+        // deployForks[38] = Chains.Null; // Linea
         // deployForks[39] = Chains.Avalanche;
         // deployForks[40] = Chains.Zora;
         // deployForks[41] = Chains.Polygon;
@@ -82,13 +82,13 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         // deployForks[46] = Chains.Gnosis;
         // deployForks[47] = Chains.Blast;
         // deployForks[48] = Chains.Apex;
-        // deployForks[49] = Chains.Funki;
+        // deployForks[49] = Chains.Null;
         // deployForks[50] = Chains.Lisk;
-        // deployForks[51] = Chains.Ham;
+        // deployForks[51] = Chains.Null;
         // deployForks[52] = Chains.OnchainPoints;
         // deployForks[53] = Chains.PolygonZkevm;
         // deployForks[54] = Chains.ArbitrumNova;
-        // deployForks[55] = Chains.Taiko;
+        // deployForks[55] = Chains.Null;
         // deployForks[56] = Chains.Null;
         // deployForks[57] = Chains.Cyber;
         // deployForks[58] = Chains.ArbitrumSepolia; // Arbitrum Sepolia
@@ -102,67 +102,39 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         // deployForks[66] = Chains.UniChain;
         // deployForks[67] = Chains.Mantle;
         // deployForks[68] = Chains.BeraChain;
-        // deployForks[0] = Chains.Null; // Linea doesn't support Cancun
-        // deployForks[1] = Chains.Polygon;
-        // deployForks[2] = Chains.Gnosis;
-        // deployForks[3] = Chains.Bsc;
-        // deployForks[4] = Chains.Scroll;
-        // deployForks[5] = Chains.PolygonZkevm;
-        // deployForks[6] = Chains.ArbitrumNova;
-        // deployForks[7] = Chains.Blast;
-        // deployForks[8] = Chains.Sepolia;
-        // deployForks[9] = Chains.BaseSepolia;
-        // deployForks[10] = Chains.BlastSepolia;
+        // deployForks[69] = Chains.Sonic;
+        // deployForks[70] = Chains.Shape;
+        // deployForks[71] = Chains.Worldchain;
+        // deployForks[72] = Chains.Flow;
+        // deployForks[73] = Chains.Sei;
+        // deployForks[74] = Chains.Perennial;
+        // deployForks[75] = Chains.Story;
+        // deployForks[76] = Chains.Gravity;
+        // deployForks[77] = Chains.Soneium;
+        // deployForks[78] = Chains.Swellchain;
+        // deployForks[79] = Chains.Sanko;
+        // deployForks[80] = Chains.Game7;
+        // deployForks[81] = Chains.Hychain;
+        // deployForks[82] = Chains.Echos;
+        // deployForks[83] = Chains.Powerloom;
+        // deployForks[84] = Chains.ArenaZ;
+        // deployForks[85] = Chains.Superposition;
+        // deployForks[86] = Chains.Ink;
+        // deployForks[87] = Chains.Boss;
+        // deployForks[88] = Chains.Forma;
+        deployForks[0] = Chains.Ronin;
 
-        // opensea
-        deployForks[0] = Chains.BeraChain;
-        deployForks[1] = Chains.Avalanche;
-        deployForks[2] = Chains.ApeChain;
-        deployForks[3] = Chains.Soneium;
-        deployForks[4] = Chains.Zora;
-        deployForks[5] = Chains.B3;
-        deployForks[6] = Chains.Arbitrum;
-        deployForks[7] = Chains.Optimism;
-        deployForks[8] = Chains.Mainnet;
+        // Didn't work:
+        // Funki
+        // Ham
+        // Taiko
+        // Linea
+        // Eclipse
 
-        // blockscout
-        // deployForks[0] = Chains.Boba;
-        // deployForks[1] = Chains.Hekla;
-        // deployForks[2] = Chains.OpSepolia;
-        // deployForks[3] = Chains.B3;
-        // deployForks[4] = Chains.ZoraSepolia;
-        // deployForks[5] = Chains.FunkiTestnet;
-        // deployForks[6] = Chains.LiskSepolia;
-        // deployForks[7] = Chains.Cloud;
-        // deployForks[8] = Chains.Game7Testnet;
-        // deployForks[9] = Chains.ShapeSepolia;
-        // deployForks[10] = Chains.ArbitrumBlueberry;
-        // deployForks[11] = Chains.Redstone;
-        // deployForks[12] = Chains.Rari;
-        // deployForks[13] = Chains.Avalanche;
-        // deployForks[14] = Chains.Zora;
-        // deployForks[15] = Chains.Ancient8;
-        // deployForks[16] = Chains.Xai;
-        // deployForks[17] = Chains.Apex;
-        // deployForks[18] = Chains.Funki;
-        // deployForks[19] = Chains.Lisk;
-        // deployForks[20] = Chains.Ham;
-        // deployForks[21] = Chains.OnchainPoints;
-        // deployForks[22] = Chains.Taiko;
-        // deployForks[23] = Chains.Cyber;
-        // deployForks[24] = Chains.Mint;
-        // deployForks[25] = Chains.ApeChain;
-        // deployForks[26] = Chains.UniChain;
-        // deployForks[27] = Chains.Mantle;
-        // deployForks[28] = Chains.BeraChain;
-
-        // No Cancun:
-        // Arbitrum Sepolia
-        // Arbitrum Blueberry
-        // Barret
-        // Rari
-        // Apex
-        // Cloud
+        // zk todo:
+        // zksync
+        // zero
+        // abstract
 
         for (uint256 i; i < deployForks.length; ++i) {
             if (deployForks[i] == Chains.Null) {
@@ -180,15 +152,15 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
             // address permit2 = deployPermit2();
             // address multicaller = deployMulticaller();
             address erc20Router = deployERC20Router(
-                PERMIT2
+                0x771ca29e483df5447e20a89e0f00e1daf09ef534
             );
             deployApprovalProxy(erc20Router);
-            // if (vm.envBool("IS_TESTNET") == true) {
-            //     deployRelayReceiver(TESTNET_SOLVER);
-            // } else {
-            //     deployRelayReceiver(SOLVER);
-            // }
-            // deployOnlyOwnerMulticaller();
+            if (vm.envBool("IS_TESTNET") == true) {
+                deployRelayReceiver(TESTNET_SOLVER);
+            } else {
+                deployRelayReceiver(SOLVER);
+            }
+            deployOnlyOwnerMulticaller();
 
             vm.stopBroadcast();
 

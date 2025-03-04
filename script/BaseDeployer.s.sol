@@ -129,6 +129,26 @@ contract BaseDeployer is Script {
         BeraChain,
         Celo,
         Soneium,
+        Sonic,
+        Shape,
+        Worldchain,
+        Flow,
+        Sei,
+        Perennial,
+        Story,
+        Gravity,
+        Swellchain,
+        Sanko,
+        Game7,
+        Hychain,
+        Echos,
+        Powerloom,
+        ArenaZ,
+        Superposition,
+        Ink,
+        Forma,
+        Eclipse,
+        Ronin,
         Null
     }
 
@@ -221,6 +241,28 @@ contract BaseDeployer is Script {
         forks[Chains.BeraChain] = "berachain";
         forks[Chains.Celo] = "celo";
         forks[Chains.Soneium] = "soneium";
+        forks[Chains.Sonic] = "sonic";
+        forks[Chains.Shape] = "shape";
+        forks[Chains.Worldchain] = "worldchain";
+        forks[Chains.Flow] = "flow";
+        forks[Chains.Sei] = "sei";
+        forks[Chains.Perennial] = "perennial";
+        forks[Chains.Story] = "story";
+        forks[Chains.Gravity] = "gravity";
+        forks[Chains.Soneium] = "soneium";
+        forks[Chains.Swellchain] = "swellchain";
+        forks[Chains.Sanko] = "sanko";
+        forks[Chains.Game7] = "game7";
+        forks[Chains.Hychain] = "hychain";
+        forks[Chains.Echos] = "echos";
+        forks[Chains.Powerloom] = "powerloom";
+        forks[Chains.ArenaZ] = "arena_z";
+        forks[Chains.Superposition] = "superposition";
+        forks[Chains.Ink] = "ink";
+        forks[Chains.Boss] = "boss";
+        forks[Chains.Forma] = "forma";
+        forks[Chains.Eclipse] = "eclipse";
+        forks[Chains.Ronin] = "ronin";
 
         // ImmutableCreate2Factory at 0x0000000000FFe8B47B3e2130213B802212439497 cannot be deployed to following chains
         noImmutableCreate2Factory[288] = true; // Boba
