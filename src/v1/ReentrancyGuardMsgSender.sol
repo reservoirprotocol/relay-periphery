@@ -46,8 +46,6 @@ abstract contract ReentrancyGuardMsgSender {
     }
 
     function _nonReentrantAfter() private {
-        // By storing the original value once again, a refund is triggered (see
-        // https://eips.ethereum.org/EIPS/eip-2200)
         MSG_SENDER_STORAGE_SLOT.asAddress().tstore(address(0));
     }
 }
