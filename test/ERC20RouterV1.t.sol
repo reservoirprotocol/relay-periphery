@@ -772,14 +772,19 @@ contract ERC20RouterV1Test is Test, BaseRelayTest {
     function testERC721__SafeMintCorrectRecipient() public {
         TestERC721 erc721 = new TestERC721();
 
-        address[] memory targets = new address[](1);
+        address[] memory targets = new address[](2);
         targets[0] = address(erc721);
-
+        targets[1] = address(erc721);
         bytes[] memory datas = new bytes[](1);
         datas[0] = abi.encodeWithSignature(
             "safeMint(address,uint256)",
             address(router),
             1
+        );
+        datas[1] = abi.encodeWithSignature(
+            "safeMint(address,uint256)",
+            address(router),
+            2
         );
 
         uint256[] memory values = new uint256[](1);
@@ -789,6 +794,11 @@ contract ERC20RouterV1Test is Test, BaseRelayTest {
         router.delegatecallMulticall(targets, datas, values, alice.addr);
 
         assertEq(erc721.ownerOf(1), alice.addr);
+
+        vm.prank(alice.addr);
+        router.delegatecallMulticall(targets, datas, values, bob.addr);
+
+        assertEq(erc721.ownerOf(2), bob.addr);
     }
 
     function testERC721__MintMsgSender() public {
@@ -975,6 +985,171 @@ contract ERC20RouterV1Test is Test, BaseRelayTest {
         assertEq(aliceUSDCBalanceAfterCleanup, routerUSDCBalanceAfterMulticall);
         assertEq(routerUSDCBalanceAfterCleanup, 0);
     }
+
+    function testReentrancyGuardMsgSender() public {
+        // Create the permit
+        ISignatureTransfer.TokenPermissions[]
+            memory permitted = new ISignatureTransfer.TokenPermissions[](3);
+        permitted[0] = ISignatureTransfer.TokenPermissions({
+            token: address(erc20_1),
+            amount: 0.1 ether
+        });
+        permitted[1] = ISignatureTransfer.TokenPermissions({
+            token: address(erc20_2),
+            amount: 0.2 ether
+        });
+        permitted[2] = ISignatureTransfer.TokenPermissions({
+            token: address(erc20_3),
+            amount: 0.3 ether
+        });
+
+        ISignatureTransfer.PermitBatchTransferFrom
+            memory permit = ISignatureTransfer.PermitBatchTransferFrom({
+                permitted: permitted,
+                nonce: 1,
+                deadline: block.timestamp + 100
+            });
+
+        // Get the witness
+        bytes32 witness = keccak256(
+            abi.encode(_EIP_712_RELAYER_WITNESS_TYPE_HASH, relayer.addr)
+        );
+
+        // Get the permit signature
+        bytes memory permitSig = getPermitBatchWitnessSignature(
+            permit,
+            alice.key,
+            _FULL_RELAYER_WITNESS_BATCH_TYPEHASH,
+            witness,
+            DOMAIN_SEPARATOR
+        );
+
+        // Create calldata to transfer tokens from the router to Bob
+        bytes memory calldata1 = abi.encodeWithSelector(
+            erc20_1.transfer.selector,
+            bob.addr,
+            0.03 ether
+        );
+
+        bytes memory calldata2 = abi.encodeWithSelector(
+            erc20_2.transfer.selector,
+            bob.addr,
+            0.15 ether
+        );
+
+        bytes memory calldata3 = abi.encodeWithSelector(
+            erc20_3.transfer.selector,
+            bob.addr,
+            0.2 ether
+        );
+
+        bytes memory calldata4 = abi.encodeWithSelector(
+            erc20_1.approve.selector,
+            alice.addr,
+            1 ether
+        );
+
+        address[] memory targets = new address[](4);
+        targets[0] = address(erc20_1);
+        targets[1] = address(erc20_2);
+        targets[2] = address(erc20_3);
+        targets[3] = address(erc20_1);
+
+        bytes[] memory datas = new bytes[](4);
+        datas[0] = calldata1;
+        datas[1] = calldata2;
+        datas[2] = calldata3;
+        datas[3] = calldata4;
+
+        uint256[] memory values = new uint256[](4);
+        values[0] = 0;
+        values[1] = 0;
+        values[2] = 0;
+        values[3] = 0;
+
+        // Call the router as the relayer
+        vm.prank(relayer.addr);
+        router.permitMulticall(
+            alice.addr,
+            permit,
+            targets,
+            datas,
+            values,
+            alice.addr,
+            permitSig
+        );
+
+        assertEq(erc20_1.balanceOf(bob.addr), 0.03 ether);
+        assertEq(erc20_2.balanceOf(bob.addr), 0.15 ether);
+        assertEq(erc20_3.balanceOf(bob.addr), 0.2 ether);
+
+        assertEq(erc20_1.balanceOf(address(router)), 0.07 ether);
+        assertEq(erc20_2.balanceOf(address(router)), 0.05 ether);
+        assertEq(erc20_3.balanceOf(address(router)), 0.1 ether);
+
+        assertEq(erc20_1.balanceOf(alice.addr), 0.9 ether);
+        assertEq(erc20_2.balanceOf(alice.addr), 0.8 ether);
+        assertEq(erc20_3.balanceOf(alice.addr), 0.7 ether);
+        // Approve the approval helper to spend erc20_1
+        erc20_1.mint(alice.addr, 0.1 ether);
+        vm.prank(alice.addr);
+        erc20_1.approve(address(approvalProxy), 1 ether);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(erc20_1);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 1 ether;
+        address[] memory targets2 = new address[](1);
+        targets2[0] = address(erc20_1);
+        bytes[] memory datas2 = new bytes[](1);
+        datas2[0] = abi.encodeWithSelector(
+            IERC20.transferFrom.selector,
+            alice.addr,
+            bob.addr,
+            1 ether
+        );
+        uint256[] memory values2 = new uint256[](1);
+        values2[0] = 0;
+
+        vm.prank(alice.addr);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ERC20InsufficientAllowance.selector,
+                address(router),
+                0,
+                1 ether
+            )
+        );
+        approvalProxy.transferAndMulticall(
+            tokens,
+            amounts,
+            targets2,
+            datas2,
+            values2,
+            alice.addr
+        );
+
+        assertEq(erc20_1.balanceOf(address(router)), 0);
+
+        datas2[0] = abi.encodeWithSelector(
+            IERC20.transfer.selector,
+            bob.addr,
+            1 ether
+        );
+
+        vm.prank(alice.addr);
+        approvalProxy.transferAndMulticall(
+            tokens,
+            amounts,
+            targets,
+            datas,
+            values,
+            alice.addr
+        );
+
+        assertEq(erc20_1.balanceOf(bob.addr), 1 ether);
+    }
+
 
     function getPermitWitnessTransferSignature(
         ISignatureTransfer.PermitTransferFrom memory permit,
