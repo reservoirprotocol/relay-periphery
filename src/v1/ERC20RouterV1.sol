@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import {Ownable} from "solady/src/auth/Ownable.sol";
 import {Tstorish} from "tstorish/src/Tstorish.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuardMsgSender} from "./ReentrancyGuardMsgSender.sol";
 import {IAllowanceTransfer} from "permit2-relay/src/interfaces/IAllowanceTransfer.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
-import {IMulticaller} from "./interfaces/IMulticaller.sol";
-
+import {MulticallerInternal} from "./MulticallerInternal.sol";
 struct RelayerWitness {
     address relayer;
 }
 
-contract ERC20Router is Ownable, Tstorish {
+contract ERC20Router is
+    Tstorish,
+    ReentrancyGuardMsgSender,
+    MulticallerInternal
+{
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
-
-    /// @notice Revert if array lengths do not match
-    error ArrayLengthsMismatch();
 
     /// @notice Revert if this contract is set as the recipient
     error InvalidRecipient(address recipient);
@@ -37,39 +37,24 @@ contract ERC20Router is Ownable, Tstorish {
     error NoRecipientSet();
 
     uint256 RECIPIENT_STORAGE_SLOT =
-        uint256(keccak256("ERC20Router.recipient"));
+        uint256(keccak256("ERC20Router.recipient")) - 1;
 
     address constant ZORA_REWARDS_V1 =
         0x7777777F279eba3d3Ad8F4E708545291A6fDBA8B;
 
     IPermit2 private immutable PERMIT2;
-    address private immutable MULTICALLER;
 
     string public constant _RELAYER_WITNESS_TYPE_STRING =
         "RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
         keccak256("RelayerWitness(address relayer)");
 
-    constructor(
-        address permit2,
-        address multicaller,
-        address owner
-    ) Tstorish() {
+    constructor(address permit2) Tstorish() {
         // Set the address of the Permit2 contract
         PERMIT2 = IPermit2(permit2);
-
-        // Set the address of the multicaller contract
-        MULTICALLER = multicaller;
-
-        // Set the owner that can withdraw funds stuck in the contract
-        _initializeOwner(owner);
     }
 
     receive() external payable {}
-
-    function withdraw() external onlyOwner {
-        _send(msg.sender, address(this).balance);
-    }
 
     /// @notice Pull user ERC20 tokens through a signed batch permit
     ///         and perform an arbitrary multicall. Pass in an empty
@@ -90,11 +75,14 @@ contract ERC20Router is Ownable, Tstorish {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable returns (bytes memory) {
+    ) external payable nonReentrant returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
         }
+
+        // Set the recipient in storage
+        _setRecipient(refundTo);
 
         if (permitSignature.length != 0) {
             // Use permit to transfer tokens from user to router
@@ -102,12 +90,10 @@ contract ERC20Router is Ownable, Tstorish {
         }
 
         // Perform the multicall and send leftover to refundTo
-        bytes memory data = _delegatecallMulticall(
-            targets,
-            datas,
-            values,
-            refundTo
-        );
+        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
+
+        // Clear the recipient in storage
+        _clearRecipient();
 
         return data;
     }
@@ -117,6 +103,8 @@ contract ERC20Router is Ownable, Tstorish {
     /// @dev    If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
     ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in refundTo
     ///         If refundTo is address(this), be sure to transfer tokens out of the router as part of the multicall
+    ///         This function does not perform a delegatecall. It is called `delegatecallMulticall` to not break
+    ///         integrations with the previous router.
     /// @param targets The addresses of the contracts to call
     /// @param datas The calldata for each call
     /// @param values The value to send with each call
@@ -126,22 +114,24 @@ contract ERC20Router is Ownable, Tstorish {
         bytes[] calldata datas,
         uint256[] calldata values,
         address refundTo
-    ) external payable returns (bytes memory) {
+    ) external payable nonReentrant returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
+        }
+
+        for (uint256 i = 0; i < targets.length; i++) {
+            // Revert if the call fails
+            if (targets[i] == ZORA_REWARDS_V1) {
+                revert InvalidTarget(ZORA_REWARDS_V1);
+            }
         }
 
         // Set the recipient in storage
         _setRecipient(refundTo);
 
         // Perform the multicall
-        bytes memory data = _delegatecallMulticall(
-            targets,
-            datas,
-            values,
-            refundTo
-        );
+        bytes[] memory data = _aggregate(targets, datas, values, refundTo);
 
         // Clear the recipient in storage
         _clearRecipient();
@@ -153,7 +143,10 @@ contract ERC20Router is Ownable, Tstorish {
     /// @dev Should be included in the multicall if the router is expecting to receive tokens
     /// @param token The address of the ERC20 token
     /// @param refundTo The address to refund the tokens to
-    function cleanupERC20(address token, address refundTo) external {
+    function cleanupERC20(
+        address token,
+        address refundTo
+    ) external nonReentrant {
         // Check the router's balance for the token
         uint256 balance = IERC20(token).balanceOf(address(this));
 
@@ -239,45 +232,6 @@ contract ERC20Router is Ownable, Tstorish {
 
         // Clear the recipient in storage
         _clearTstorish(RECIPIENT_STORAGE_SLOT);
-    }
-
-    /// @notice Internal function to delegatecall the Multicaller contract
-    /// @param targets The addresses of the contracts to call
-    /// @param datas The calldata for each call
-    /// @param values The value to send with each call
-    /// @param refundTo The address to send any leftover ETH and set as recipient of ERC721/ERC1155 mints
-    function _delegatecallMulticall(
-        address[] calldata targets,
-        bytes[] calldata datas,
-        uint256[] calldata values,
-        address refundTo
-    ) internal returns (bytes memory) {
-        for (uint256 i = 0; i < targets.length; i++) {
-            // Revert if the call fails
-            if (targets[i] == ZORA_REWARDS_V1) {
-                revert InvalidTarget(ZORA_REWARDS_V1);
-            }
-        }
-
-        // Perform the multicall and refund to the user
-        (bool success, bytes memory data) = MULTICALLER.delegatecall(
-            abi.encodeWithSignature(
-                "aggregate(address[],bytes[],uint256[],address)",
-                targets,
-                datas,
-                values,
-                refundTo
-            )
-        );
-
-        if (!success) {
-            assembly {
-                let returnDataSize := mload(data)
-                revert(add(data, 32), returnDataSize)
-            }
-        }
-
-        return data;
     }
 
     function _send(address to, uint256 value) internal {

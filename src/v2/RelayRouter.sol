@@ -7,10 +7,11 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
+import {ReentrancyGuardMsgSender} from "../v1/ReentrancyGuardMsgSender.sol";
 import {Multicall3} from "./utils/Multicall3.sol";
 import {Call, Call3, Call3Value, Result, RelayerWitness} from "./utils/RelayStructs.sol";
 
-contract RelayRouter is Multicall3, Tstorish {
+contract RelayRouter is Multicall3, ReentrancyGuardMsgSender, Tstorish {
     using SafeTransferLib for address;
 
     // --- Errors --- //
@@ -30,7 +31,7 @@ contract RelayRouter is Multicall3, Tstorish {
     error ArrayLengthsMismatch();
 
     uint256 RECIPIENT_STORAGE_SLOT =
-        uint256(keccak256("RelayRouter.recipient"));
+        uint256(keccak256("RelayRouter.recipient")) - 1;
 
     constructor() Tstorish() {}
 
@@ -45,7 +46,7 @@ contract RelayRouter is Multicall3, Tstorish {
         Call3Value[] calldata calls,
         address refundTo,
         address nftRecipient
-    ) public payable virtual returns (Result[] memory returnData) {
+    ) public payable virtual nonReentrant returns (Result[] memory returnData) {
         // Set the NFT recipient if provided
         if (nftRecipient != address(0)) {
             _setRecipient(nftRecipient);
@@ -103,7 +104,10 @@ contract RelayRouter is Multicall3, Tstorish {
     /// @dev Set amount to 0 to transfer the full balance. Set recipient to address(0) to transfer to msg.sender
     /// @param amount The amount of native tokens to transfer
     /// @param recipient The recipient address
-    function cleanupNative(uint256 amount, address recipient) public virtual {
+    function cleanupNative(
+        uint256 amount,
+        address recipient
+    ) public virtual {
         // If recipient is address(0), set to msg.sender
         address recipientAddr = recipient == address(0)
             ? msg.sender

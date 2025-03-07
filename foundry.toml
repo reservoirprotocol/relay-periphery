@@ -65,11 +65,11 @@ solana = "https://wild-magical-darkness.solana-mainnet.quiknode.pro/29d5577cf069
 onchain_points = "https://rpc-onchain-points-8n0qkkpr2j.t.conduit.xyz"
 polygon_zkevm = "https://yolo-proportionate-asphalt.zkevm-mainnet.quiknode.pro/63e56ccf849ce2a176a40f31272baae22965c492/"
 arbitrum_nova = "https://distinguished-boldest-layer.nova-mainnet.quiknode.pro/991046398297653a9f0ff1293ce912630986fd5f/"
-taiko = "https://rpc.taiko.tools"
+taiko = "https://taiko.drpc.org"
 boba = "https://mainnet.boba.network"
 cyber = "https://rpc.cyber.co"
 arbitrum = "https://bold-few-mountain.arbitrum-mainnet.quiknode.pro/141c1fd7dd64a97d4d3c52d1487dbbefc55603b3/"
-scroll = "https://wiser-virulent-lambo.scroll-mainnet.quiknode.pro/9ad76bbb12e2bbbb051224ce31a2963bfbe2af1a/"
+scroll = "https://rpc.scroll.io"
 mainnet = "https://multi-hidden-season.quiknode.pro/1330cd9c226307d0f722003a01b68cc844344a39/"
 bsc = "https://fabled-black-sanctuary.bsc.quiknode.pro/8dba6ccc07667feafd0dd6064281c2a46ae353ed/"
 base = "https://aged-compatible-pine.base-mainnet.quiknode.pro/86247a56f7f36a0f0c0b10eb65061748f66bce7c/"
@@ -86,4 +86,56 @@ alleged_jade_loon = "https://rpc-alleged-jade-loon-fqlx1rs2zw.t.conduit.xyz"
 kekchain = "https://rpc-kekchain-lvvulci8ai.t.conduit.xyz"
 eclipse_testnet = "https://testnet.dev2.eclipsenetwork.xyz"
 zero_testnet = "https://rpc.zerion.io/v1/zero-sepolia"
-world_chain = "https://worldchain-mainnet.g.alchemy.com/public"
+worldchain = "https://worldchain-mainnet.g.alchemy.com/public"
+apechain = "https://apechain.calderachain.xyz/http"
+unichain = "https://unichain.drpc.org"
+mantle = "https://rpc.mantle.xyz"
+berachain = "https://rpc.berachain.com"
+sonic = "https://rpc.soniclabs.com"
+shape = "https://mainnet.shape.network"
+flow = "https://mainnet.evm.nodes.onflow.org"
+sei = "https://evm-rpc.sei-apis.com"
+perennial = "https://rpc-perennial-lsv53i0ed8.t.conduit.xyz"
+story = "https://mainnet.storyrpc.io"
+gravity = "https://rpc.gravity.xyz"
+soneium = "https://rpc.soneium.org/"
+swellchain = "https://swell-mainnet.alt.technology"
+sanko = "https://mainnet.sanko.xyz"
+game7 = "https://mainnet-rpc.game7.io/"
+hychain = "https://rpc.hychain.com/http"
+echos = "https://rpc-echos-mainnet-0.t.conduit.xyz"
+powerloom = "https://rpc.powerloom.network"
+arena_z = "https://rpc.arena-z.gg"
+superposition = "https://rpc.superposition.so"
+ink = "https://rpc-qnd.inkonchain.com"
+forma = "https://rpc.forma.art"
+eclipse = "https://mainnetbeta-rpc.eclipse.xyz"
+ronin = "https://api.roninchain.com/rpc"
+
+[etherscan]
+# Mainnets
+mainnet = { key = "${ETHERSCAN_API_KEY_ETHEREUM}" }
+optimism = { key = "${ETHERSCAN_API_KEY_OPTIMISM}" }
+polygon = { key = "${ETHERSCAN_API_KEY_POLYGON}" }
+gnosis = { key = "${ETHERSCAN_API_KEY_GNOSIS}" }
+linea = { key = "${ETHERSCAN_API_KEY_LINEA}" }
+bsc = { key = "${ETHERSCAN_API_KEY_BSC}" }
+scroll = { key = "${ETHERSCAN_API_KEY_SCROLL}" }
+polygon_zkevm = { key = "${ETHERSCAN_API_KEY_POLYGON_ZKEVM}" }
+zksync = { key = "0x", url = "https://block-explorer-api.mainnet.zksync.io/api" }
+astar_zkevm = { key = "0x", url = "https://astar-zkevm.explorer.startale.com/api" }
+base = { key = "${ETHERSCAN_API_KEY_BASE}" }
+arbitrum = { key = "${ETHERSCAN_API_KEY_ARBITRUM}" }
+arbitrum_nova = { key = "${ETHERSCAN_API_KEY_ARBITRUM_NOVA}" }
+zora = { key = "0x", url = "https://explorer.zora.energy/api" }
+apex = { key = "0x", url = "https://explorer.apex.proofofplay.com/api" }
+blast = { key = "${ETHERSCAN_API_KEY_BLAST}" }
+apechain = { key = "${ETHERSCAN_API_KEY_APECHAIN}", chain = 33139, url = "https://api.apescan.io/api" }
+berachain = { key = "${ETHERSCAN_API_KEY_BERA}", chain = 80094, url = "https://api.berascan.com/api" }
+# Testnets
+sepolia = { key = "${ETHERSCAN_API_KEY_SEPOLIA}" }
+base_sepolia = { key = "${ETHERSCAN_API_KEY_BASE_SEPOLIA}" }
+blast_sepolia = { key = "${ETHERSCAN_API_KEY_BLAST_SEPOLIA}" }
+zora_sepolia = { key = "0x", url = "https://sepolia.explorer.zora.energy/api" }
+barret = { key = "${ETHERSCAN_API_KEY_ARBITRUM}", url = "https://70800.testnet.routescan.io/api" }
+b3_sepolia = { key = "${ETHERSCAN_API_KEY_ARBITRUM}", url = "https://sepolia.explorer.b3.fun/api" }

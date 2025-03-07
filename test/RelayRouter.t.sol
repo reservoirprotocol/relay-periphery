@@ -20,6 +20,9 @@ import {TestERC721} from "./mocks/TestERC721.sol";
 import {TestERC721_ERC20PaymentToken} from "./mocks/TestERC721_ERC20PaymentToken.sol";
 import {BaseRelayTest} from "./base/BaseRelayTest.sol";
 import {IUniswapV2Router01} from "./interfaces/IUniswapV2Router02.sol";
+import {Attacker} from "./mocks/Attacker.sol";
+
+import {ERC20Router} from "../src/v1/ERC20RouterV1.sol";
 
 struct RelayerWitness {
     address relayer;
