@@ -149,6 +149,7 @@ contract BaseDeployer is Script {
         Forma,
         Eclipse,
         Ronin,
+        Rootstock,
         Null
     }
 
@@ -263,7 +264,7 @@ contract BaseDeployer is Script {
         forks[Chains.Forma] = "forma";
         forks[Chains.Eclipse] = "eclipse";
         forks[Chains.Ronin] = "ronin";
-
+        forks[Chains.Rootstock] = "rootstock";
         // ImmutableCreate2Factory at 0x0000000000FFe8B47B3e2130213B802212439497 cannot be deployed to following chains
         noImmutableCreate2Factory[288] = true; // Boba
         noImmutableCreate2Factory[33979] = true; // Funki

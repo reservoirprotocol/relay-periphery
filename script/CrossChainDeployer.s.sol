@@ -32,7 +32,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
     function createDeployMultichain() private {
         /// @dev add new chain(s) below and update array length accordingly
         /// NOTE: contracts have already been deployed to commented out chains. Make sure to also add your chain to the Chain enum and forks mapping in BaseDeployer.s.sol
-        Chains[] memory deployForks = new Chains[](2);
+        Chains[] memory deployForks = new Chains[](1);
         // deployForks[0] = Chains.Mainnet; // Amoy
         // deployForks[1] = Chains.Base;
         // deployForks[2] = Chains.Arbitrum;
@@ -122,8 +122,9 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         // deployForks[86] = Chains.Ink;
         // deployForks[87] = Chains.Boss;
         // deployForks[88] = Chains.Forma;
-        deployForks[0] = Chains.Bob;
-        deployForks[1] = Chains.Scroll;
+        // deployForks[89] = Chains.Bob;
+        // deployForks[90] = Chains.Scroll;
+        deployForks[0] = Chains.Rootstock;
 
         // Didn't work:
         // Funki
@@ -156,12 +157,12 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
                 PERMIT2
             );
             deployApprovalProxy(erc20Router);
-            // if (vm.envBool("IS_TESTNET") == true) {
-            //     deployRelayReceiver(TESTNET_SOLVER);
-            // } else {
-            //     deployRelayReceiver(SOLVER);
-            // }
-            // deployOnlyOwnerMulticaller();
+            if (vm.envBool("IS_TESTNET") == true) {
+                deployRelayReceiver(TESTNET_SOLVER);
+            } else {
+                deployRelayReceiver(SOLVER);
+            }
+            deployOnlyOwnerMulticaller();
 
             vm.stopBroadcast();
 
