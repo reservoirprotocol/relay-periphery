@@ -111,6 +111,7 @@ ink = "https://rpc-qnd.inkonchain.com"
 forma = "https://rpc.forma.art"
 eclipse = "https://mainnetbeta-rpc.eclipse.xyz"
 ronin = "https://api.roninchain.com/rpc"
+rootstock = "https://public-node.rsk.co"
 
 [etherscan]
 # Mainnets
