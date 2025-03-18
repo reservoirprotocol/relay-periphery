@@ -6,6 +6,24 @@ out = "out"
 libs = ["lib"]
 via_ir = true
 
+[profile.metadata]
+auto_detect_solc = true
+evm_version = "cancun"
+src = "src"
+out = "out"
+libs = ["lib"]
+via_ir = true
+bytecode_hash = "none"
+cbor_metadata = false
+
+[profile.shanghai]
+auto_detect_solc = true
+evm_version = "shanghai"
+src = "src"
+out = "out"
+libs = ["lib"]
+via_ir = true
+
 fs_permissions = [{ access = "read", path = "./"}]
 
 [rpc_endpoints]
@@ -131,6 +149,7 @@ arbitrum_nova = { key = "${ETHERSCAN_API_KEY_ARBITRUM_NOVA}" }
 zora = { key = "0x", url = "https://explorer.zora.energy/api" }
 apex = { key = "0x", url = "https://explorer.apex.proofofplay.com/api" }
 blast = { key = "${ETHERSCAN_API_KEY_BLAST}" }
+corn = { key = "0x", chain = 21000000, url = "https://api.routescan.io/v2/network/mainnet/evm/21000000/etherscan" }
 apechain = { key = "${ETHERSCAN_API_KEY_APECHAIN}", chain = 33139, url = "https://api.apescan.io/api" }
 berachain = { key = "${ETHERSCAN_API_KEY_BERA}", chain = 80094, url = "https://api.berascan.com/api" }
 # Testnets
