@@ -133,11 +133,6 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         // Linea
         // Eclipse
 
-        // zk todo:
-        // zksync
-        // zero
-        // abstract
-
         for (uint256 i; i < deployForks.length; ++i) {
             if (deployForks[i] == Chains.Null) {
                 continue;
