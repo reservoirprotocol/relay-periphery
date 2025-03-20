@@ -34,18 +34,18 @@ contract SingleChainDeployer is Script, Test, BaseDeployer {
 
     function deploy() private {
         vm.startBroadcast(owner);
-        // address permit2 = deployPermit2();
-        // address multicaller = deployMulticaller();
+        address permit2 = deployPermit2();
+        address multicaller = deployMulticaller();
         address erc20Router = deployERC20Router(
             PERMIT2
         );
         deployApprovalProxy(erc20Router);
-        // if (vm.envBool("IS_TESTNET") == true) {
-        //     deployRelayReceiver(TESTNET_SOLVER);
-        // } else {
-        //     deployRelayReceiver(SOLVER);
-        // }
-        // deployOnlyOwnerMulticaller();
+        if (vm.envBool("IS_TESTNET") == true) {
+            deployRelayReceiver(TESTNET_SOLVER);
+        } else {
+            deployRelayReceiver(SOLVER);
+        }
+        deployOnlyOwnerMulticaller();
         vm.stopBroadcast();
 
         console2.log("\n");
