@@ -124,7 +124,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         // deployForks[88] = Chains.Forma;
         // deployForks[89] = Chains.Bob;
         // deployForks[90] = Chains.Scroll;
-        deployForks[0] = Chains.Rootstock;
+        // deployForks[91] = Chains.Rootstock;
 
         // Didn't work:
         // Funki
@@ -146,8 +146,8 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
             createSelectFork(deployForks[i]);
 
             vm.startBroadcast(owner);
-            // address permit2 = deployPermit2();
-            // address multicaller = deployMulticaller();
+            address permit2 = deployPermit2();
+            address multicaller = deployMulticaller();
             address erc20Router = deployERC20Router(
                 PERMIT2
             );
